@@ -1,28 +1,21 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 DESCRIPTION = """
 Ultralightweight python CLI framework
 """
 
-
-
-
-
-
-
-
-
-setup(name='Leip',
-      version='0.0.2',
+setup(name='leip',
+      version='0.0.4',
       description=DESCRIPTION,
       author='Mark Fiers',
       author_email='mark.fiers42@gmail.com',
       url='http://mfiers.github.com/Leip',
-      packages=['Leip'],
+      packages=find_packages(),
       requires=[
         'Yaco (>=0.1.11)',
+        'xlrd',
         ],
       package_dir = {'Leip': 'leip'},
       classifiers = [
