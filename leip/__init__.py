@@ -60,7 +60,7 @@ class app(object):
         if not config_files:
             config_files = (
                 ('app1', sys.argv[0] + '.config'),
-                ('system', '/etc/{}.config'.format(name)),
+                ('system', '/etc/{0}.config'.format(name)),
                 ('user', '~/.config/{0}/{0}.config'.format(name)),
                 )
 
@@ -240,7 +240,7 @@ def arg(*args, **kwargs):
     add an argument to a command - use the full argparse syntax
     """
     def decorator(f):
-        lg.debug("adding leip argument {}, {}".format(str(args), str(kwargs)))
+        lg.debug("adding leip argument {0}, {1}".format(str(args), str(kwargs)))
         f._leip_args.append((args, kwargs))
         return f
     return decorator
