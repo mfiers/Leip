@@ -1,4 +1,5 @@
-Yaco.egg-info
+Leip.egg-info
+*.bak
 *.pyc
 *#
 *~

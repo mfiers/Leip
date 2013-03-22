@@ -92,11 +92,23 @@ class app(object):
         if 'plugin' in self.conf:
             for plugin_name in self.conf.plugin:
                 self.lg.debug("loading plugin %s" % plugin_name)
-                module_name = self.conf.plugin[plugin_name].module
-                modsearch = imp.find_module(module_name)
-                module = imp.load_module(module_name, *modsearch)
-                self.plugins[plugin_name] = module
-                self.discover(module)
+                
+                module_name = self.conf.plugin[plugin_name].module.strip()
+
+                enabled = self.conf.plugin[plugin_name].get('enabled', True)
+                if not enabled: 
+                    continue
+
+                modbase, modsub = module_name.rsplit('.', 1)
+                package = __import__( modbase, globals(), locals(), [modsub] )
+                mod = package.__dict__[modsub]
+
+                #weird - this does not seem to work
+                #modsearch = imp.find_module(module_name)
+                #module = imp.load_module(module_name, *modsearch)
+
+                self.plugins[plugin_name] = mod
+                self.discover(mod)
         
 
         #register command run as a hook
