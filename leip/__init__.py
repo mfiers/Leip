@@ -45,7 +45,7 @@ class app(object):
             
         self.lg = logging.getLogger(self.__class__.__name__)
         self.lg.debug("Starting Leip app")
-        self.commands = {}
+        self.leip_commands = {}
         self.plugins = {}
         self.hooks = defaultdict(list)
 
@@ -72,7 +72,7 @@ class app(object):
         self.conf.load()
 
         #create a 'set' command to manipulate the configuration
-        def _conf_set(args):
+        def _conf_set(app, args):
             """
             Set & save a configuration value
             """
@@ -114,7 +114,7 @@ class app(object):
         #register command run as a hook
         def _run_command(app):
             command = self.trans.args.command
-            self.commands[command](self, self.trans.args)
+            self.leip_commands[command](self, self.trans.args)
         self.register_hook('run', 50, _run_command)
         
         #register parse arguments as a hook
@@ -165,7 +165,7 @@ class app(object):
         cname = function._leip_command
         self.lg.debug("discovered command %s" % cname)
 
-        self.commands[cname] = function
+        self.leip_commands[cname] = function
 
         #create a help text from the docstring - if possible
         _desc = [cname]
