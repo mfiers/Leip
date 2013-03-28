@@ -6,8 +6,6 @@ Leip
 
 import argparse
 from collections import defaultdict
-import decorator
-import imp
 import logging
 import os
 import sys
@@ -17,6 +15,7 @@ import Yaco
 
 logging.basicConfig()
 lg = logging.getLogger(__name__)
+#lg.setLevel(logging.DEBUG)
 
 class app(object):
 
@@ -43,8 +42,7 @@ class app(object):
         if name is None:
             name = os.path.basename(sys.argv[0])
             
-        self.lg = logging.getLogger(self.__class__.__name__)
-        self.lg.debug("Starting Leip app")
+        lg.debug("Starting Leip app")
         self.leip_commands = {}
         self.plugins = {}
         self.hooks = defaultdict(list)
@@ -91,7 +89,7 @@ class app(object):
         #check for plugins
         if 'plugin' in self.conf:
             for plugin_name in self.conf.plugin:
-                self.lg.debug("loading plugin %s" % plugin_name)
+                lg.debug("loading plugin %s" % plugin_name)
                 
                 module_name = self.conf.plugin[plugin_name].module.strip()
 
@@ -99,6 +97,9 @@ class app(object):
                 if not enabled: 
                     continue
 
+
+                lg.debug("attempting to load plugin from module {0}".format(
+                    module_name))
                 modbase, modsub = module_name.rsplit('.', 1)
                 package = __import__( modbase, globals(), locals(), [modsub] )
                 mod = package.__dict__[modsub]
@@ -153,7 +154,7 @@ class app(object):
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
                 prio = obj._leip_hook_priority
-                self.lg.debug("discovered hook %s (%d) in %s" % (
+                lg.debug("discovered hook %s (%d) in %s" % (
                         hook, prio, obj.__name__))
                 self.hooks[hook].append(
                     (prio, obj))
@@ -163,7 +164,7 @@ class app(object):
 
     def register_command(self, function):
         cname = function._leip_command
-        self.lg.debug("discovered command %s" % cname)
+        lg.debug("discovered command %s" % cname)
 
         self.leip_commands[cname] = function
 
@@ -187,9 +188,9 @@ class app(object):
 
         function._cparser = cp
 
-
         
     def register_hook(self, name, priority, function):
+        lg.debug("registering hook {0} / {1}".format(name, function))
         self.hooks[name].append(
             (priority, function))
 
@@ -200,7 +201,7 @@ class app(object):
         to_run = sorted(self.hooks[name])
         lg.debug("running hook %s" % name)
         for priority, func in to_run:
-            self.lg.debug("running hook %s" % func)
+            lg.debug("running hook %s" % func)
             func(self, *args, **kw)
 
     def run(self):
@@ -225,14 +226,15 @@ def command(f):
     lg.debug("marking function as leip command: %s" % f.__name__)
     return f
     
-def commandName(self, name):
+def commandName(name):
     """
     as command, but provide a specific name
     """
     def decorator(f):
         lg.debug("marking function as leip command: %s" % name)
-        self._leip_command = name
-        self._leip_args = []
+        f._leip_command = name
+        f._leip_args = []
+        return f
     return decorator
 
 def arg(*args, **kwargs):
