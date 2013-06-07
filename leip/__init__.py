@@ -30,7 +30,8 @@ class app(object):
              `~/.config/<NAME>/config.yaml`. The order is important, the last
              config file is the one to which changes will be saved
         :type config_files: a list of tuples: (id, filename)
-        :param set_name: name of the command to set new values, default='set'
+        :param set_name: name of the command to set new values, 
+           if set to None, no set function is available. Default='set'
         :type set_name: string
 
         :param base_config: basis configuration on top of which the
@@ -78,13 +79,13 @@ class app(object):
             self.conf.save()
 
         #annotate the function for later use as command
-        _conf_set._leip_command = set_name
-        _conf_set._leip_args = [
-            [['key'], {'help' : "key to set"}],
-            [['value'], {'help' : "value to set the key to"}],
-            ]
-        
-        self.register_command(_conf_set)
+        if not set_name is None:
+            _conf_set._leip_command = set_name
+            _conf_set._leip_args = [
+                [['key'], {'help' : "key to set"}],
+                [['value'], {'help' : "value to set the key to"}],
+                ]
+            self.register_command(_conf_set)
 
         #check for plugins
         if 'plugin' in self.conf:

@@ -7,7 +7,7 @@ Ultralightweight python CLI framework
 """
 
 setup(name='leip',
-      version='0.0.6',
+      version='0.0.8',
       description=DESCRIPTION,
       author='Mark Fiers',
       author_email='mark.fiers42@gmail.com',
@@ -25,8 +25,8 @@ setup(name='leip',
           'Operating System :: OS Independent',
           'Programming Language :: Python :: 2.6',
           'Programming Language :: Python :: 2.7',
-          'Programming Language :: Python :: 3',
-          'Programming Language :: Python :: 3.3',
+          #'Programming Language :: Python :: 3',
+          #'Programming Language :: Python :: 3.3',
           ]
 
      )
