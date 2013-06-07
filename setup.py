@@ -1,6 +1,18 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
+#from setuptools.command.test import test as TestCommand
+
+#class Tox(TestCommand):
+#    def finalize_options(self):
+#        TestCommand.finalize_options(self)
+#        self.test_args = []
+#        self.test_suite = True
+#    def run_tests(self):
+#        #import here, cause outside the eggs aren't loaded
+#        import tox
+#        errno = tox.cmdline(self.test_args)
+#        sys.exit(errno)
 
 DESCRIPTION = """
 Ultralightweight python CLI framework
@@ -13,9 +25,10 @@ setup(name='leip',
       author_email='mark.fiers42@gmail.com',
       url='http://mfiers.github.com/Leip',
       packages=find_packages(),
+      #tests_require = ['tox'],
+      #cmdclass = {'test': Tox},
       requires=[
         'Yaco (>=0.1.11)',
-        'xlrd',
         ],
       package_dir = {'Leip': 'leip'},
       classifiers = [
