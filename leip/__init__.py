@@ -7,6 +7,7 @@ Leip
 import argparse
 from collections import defaultdict
 import logging
+import importlib
 import os
 import sys
 import textwrap
@@ -25,12 +26,12 @@ class app(object):
 
         :param name: base name of the applications
         :type name: string
-        :param config_files: list of configuration files, if ommitted 
-             the app defaults to `/etc/<NAME>.yaml` and 
+        :param config_files: list of configuration files, if ommitted
+             the app defaults to `/etc/<NAME>.yaml` and
              `~/.config/<NAME>/config.yaml`. The order is important, the last
              config file is the one to which changes will be saved
         :type config_files: a list of tuples: (id, filename)
-        :param set_name: name of the command to set new values, 
+        :param set_name: name of the command to set new values,
            if set to None, no set function is available. Default='set'
         :type set_name: string
 
@@ -42,10 +43,11 @@ class app(object):
 
         if name is None:
             name = os.path.basename(sys.argv[0])
-            
+
         lg.debug("Starting Leip app")
         self.leip_commands = {}
         self.plugins = {}
+
         self.hooks = defaultdict(list)
 
         self.parser = argparse.ArgumentParser()
@@ -53,15 +55,15 @@ class app(object):
         self.parser.add_argument('-v', '--verbose', action='store_true')
 
         self.subparser = self.parser.add_subparsers(
-            title = 'command', dest='command')
+            title = 'command', dest='command',
+            help='"{}" command to execute'.format(name))
 
         #configuration object
         if not config_files:
-            config_files = (
-                ('app1', sys.argv[0] + '.config'),
-                ('system', '/etc/{0}.config'.format(name)),
-                ('user', '~/.config/{0}/{0}.config'.format(name)),
-                )
+            config_files = [
+                sys.argv[0] + '.config',
+                '/etc/{0}.config'.format(name),
+                '~/.config/{0}/{0}.config'.format(name)]
 
         #contains transient data - execution specific
         self.trans = Yaco.Yaco()
@@ -91,34 +93,33 @@ class app(object):
         if 'plugin' in self.conf:
             for plugin_name in self.conf.plugin:
                 lg.debug("loading plugin %s" % plugin_name)
-                
+
                 module_name = self.conf.plugin[plugin_name].module.strip()
 
                 enabled = self.conf.plugin[plugin_name].get('enabled', True)
-                if not enabled: 
+                if not enabled:
                     continue
 
 
                 lg.debug("attempting to load plugin from module {0}".format(
                     module_name))
                 modbase, modsub = module_name.rsplit('.', 1)
-                package = __import__( modbase, globals(), locals(), [modsub] )
-                mod = package.__dict__[modsub]
-
-                #weird - this does not seem to work
-                #modsearch = imp.find_module(module_name)
-                #module = imp.load_module(module_name, *modsearch)
+                mod = importlib.import_module(module_name)
 
                 self.plugins[plugin_name] = mod
                 self.discover(mod)
-        
+
 
         #register command run as a hook
         def _run_command(app):
             command = self.trans.args.command
+            if command is None:
+                self.parser.print_help()
+                sys.exit(0)
+
             self.leip_commands[command](self, self.trans.args)
         self.register_hook('run', 50, _run_command)
-        
+
         #register parse arguments as a hook
         def _prep_args(app):
             self.trans.args = self.parser.parse_args()
@@ -131,23 +132,37 @@ class app(object):
         #hook run order
         self.hook_order = ['prepare', 'run', 'finish']
 
-        
+
     def discover(self, mod):
         """
-        discover all hooks & commands in the provided module or 
+        discover all hooks & commands in the provided module or
         module namespace (globals())
 
         :param mod: an imported module or a globals dict
         """
-        
+
         if isinstance(mod, dict):
             mod_objects = mod
         else:
             mod_objects = mod.__dict__
 
+        leip_init_hook = None
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
-            
+
+            #see if this is a function decorated as hook
+            if hasattr(obj, '__call__') and \
+                    hasattr(obj, '_leip_init_hook'):
+                leip_init_hook = obj
+
+        if not leip_init_hook is None:
+            # execute init_hook - with the app - so
+            # the module has access to configuration
+            leip_init_hook(self)
+
+        for obj_name in mod_objects:
+            obj = mod_objects[obj_name]
+
             #see if this is a function decorated as hook
             if not hasattr(obj, '__call__'):
                 continue
@@ -159,9 +174,10 @@ class app(object):
                         hook, prio, obj.__name__))
                 self.hooks[hook].append(
                     (prio, obj))
-            
+
             if hasattr(obj, '_leip_command'):
                 self.register_command(obj)
+
 
     def register_command(self, function):
         cname = function._leip_command
@@ -189,7 +205,7 @@ class app(object):
 
         function._cparser = cp
 
-        
+
     def register_hook(self, name, priority, function):
         lg.debug("registering hook {0} / {1}".format(name, function))
         self.hooks[name].append(
@@ -201,6 +217,7 @@ class app(object):
         """
         to_run = sorted(self.hooks[name])
         lg.debug("running hook %s" % name)
+
         for priority, func in to_run:
             lg.debug("running hook %s" % func)
             func(self, *args, **kw)
@@ -208,12 +225,12 @@ class app(object):
     def run(self):
         for hook in self.hook_order:
             self.run_hook(hook)
-        
 
 
 
 
-## 
+
+##
 ## Command decorators
 ##
 
@@ -226,7 +243,7 @@ def command(f):
     f._leip_args = []
     lg.debug("marking function as leip command: %s" % f.__name__)
     return f
-    
+
 def commandName(name):
     """
     as command, but provide a specific name
@@ -259,7 +276,23 @@ def flag(self, *args, **kwargs):
         return f
     return decorator
 
-    
+##
+## Init hook decorators
+##
+
+def init(f):
+    """
+    mark this function as a hook for later execution
+
+    :param name: name of the hook to call
+    :type name: string
+    :param priority: inidicate how soon this hook must be called.
+        Lower means sooner (default: 50)
+    :type priority: int
+    """
+    f._leip_init_hook = f.__name__
+    return f
+
 ##
 ## Hook decorators
 ##
@@ -271,7 +304,7 @@ def hook(name, priority = 50):
     :param name: name of the hook to call
     :type name: string
     :param priority: inidicate how soon this hook must be called.
-        Higher is sooner (default: 50)
+        Lower means sooner (default: 50)
     :type priority: int
     """
     def _hook(f):
@@ -280,10 +313,10 @@ def hook(name, priority = 50):
         f._leip_hook = name
         f._leip_hook_priority = priority
         return f
-    
+
     return _hook
 
-    
-    
-        
-        
+
+
+
+
