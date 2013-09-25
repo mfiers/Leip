@@ -9,6 +9,7 @@ from collections import defaultdict
 import logging
 import importlib
 import os
+import pkg_resources
 import sys
 import textwrap
 
@@ -18,10 +19,34 @@ logging.basicConfig()
 lg = logging.getLogger(__name__)
 #lg.setLevel(logging.DEBUG)
 
+
+def get_config(name, config_files=None, base_location=None, base_config=None):
+
+    if base_config is None:
+        if base_location is None:
+            base_location = os.path.join('etc', '{}.config'.format(name))
+        try:
+            base_config = pkg_resources.resource_string(name, base_location)
+        except IOError:
+
+            lg.critical("Leip cannot find package base config")
+
+    if not config_files is None:
+        config_files = [
+            sys.argv[0] + '.config',
+            '/etc/{0}.config'.format(name),
+            '~/.config/{0}/{0}.config'.format(name)]
+
+    return Yaco.PolyYaco(name, base=base_config, files=config_files)
+
+
 class app(object):
 
-    def __init__(self, name=None, config_files = None, set_name = 'set',
-                 base_config = ""):
+    def __init__(self, name=None,
+                 config_files = None,
+                 set_name = 'set',
+                 base_config=None,
+                 base_config_location = None):
         """
 
         :param name: base name of the applications
@@ -43,6 +68,7 @@ class app(object):
 
         if name is None:
             name = os.path.basename(sys.argv[0])
+        self.name = name
 
         lg.debug("Starting Leip app")
         self.leip_commands = {}
@@ -70,6 +96,10 @@ class app(object):
 
         #contains configuration data
         self.conf = Yaco.PolyYaco(name, base = base_config, files = config_files)
+        self.conf = get_config(self.name,
+                               config_files=config_files,
+                               base_location=base_config_location,
+                               base_config=base_config )
         self.conf.load()
 
         #create a 'set' command to manipulate the configuration
