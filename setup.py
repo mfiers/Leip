@@ -19,7 +19,7 @@ Ultralightweight python CLI framework
 """
 
 setup(name='leip',
-      version='0.0.9',
+      version='0.0.10',
       description=DESCRIPTION,
       author='Mark Fiers',
       author_email='mark.fiers42@gmail.com',
