@@ -170,7 +170,19 @@ class app(object):
 
         :param mod: an imported module or a globals dict
         """
+        self.run_init_hook(self, mod)
+        self.discover_2(self, mod)
 
+    def run_init_hook(self, mod)
+        """
+        Run prediscovery initialization hook for this module.
+
+        This might allow, for example, flexible creation of functions
+        to be discovered later on.
+
+        For a hook to be executed as a prediscovery init hook, it needs to be
+        decorated with: ''@leip.init''
+        """
         if isinstance(mod, dict):
             mod_objects = mod
         else:
@@ -190,6 +202,10 @@ class app(object):
             # the module has access to configuration
             leip_init_hook(self)
 
+    def discover_2(self, mod):
+        """
+        Execute actual discovery of leip tagged functions & hooks
+        """
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
 
@@ -307,18 +323,14 @@ def flag(self, *args, **kwargs):
     return decorator
 
 ##
-## Init hook decorators
+## Pre discovery init hook decorators
 ##
 
 def init(f):
     """
-    mark this function as a hook for later execution
+    Mark this function as a pre discovery init hook.get_config.
 
-    :param name: name of the hook to call
-    :type name: string
-    :param priority: inidicate how soon this hook must be called.
-        Lower means sooner (default: 50)
-    :type priority: int
+    Only one per module is expected.
     """
     f._leip_init_hook = f.__name__
     return f
