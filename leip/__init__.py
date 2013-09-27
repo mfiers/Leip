@@ -6,6 +6,7 @@ Leip
 
 import argparse
 from collections import defaultdict
+import hashlib
 import logging
 import importlib
 import os
@@ -20,7 +21,13 @@ lg = logging.getLogger(__name__)
 #lg.setLevel(logging.DEBUG)
 
 
+#cache config files
+CONFIG = {}
+
+
 def get_config(name, config_files=None, base_location=None, base_config=None):
+
+    global CONFIG
 
     if base_config is None:
         if base_location is None:
@@ -28,8 +35,7 @@ def get_config(name, config_files=None, base_location=None, base_config=None):
         try:
             base_config = pkg_resources.resource_string(name, base_location)
         except IOError:
-
-            lg.critical("Leip cannot find package base config")
+            lg.debug("Leip cannot find package base config")
 
     if not config_files is None:
         config_files = [
@@ -37,7 +43,20 @@ def get_config(name, config_files=None, base_location=None, base_config=None):
             '/etc/{0}.config'.format(name),
             '~/.config/{0}/{0}.config'.format(name)]
 
-    return Yaco.PolyYaco(name, base=base_config, files=config_files)
+    md5 = hashlib.md5()
+    md5.update(name)
+    if not base_config is None:
+        md5.update(base_config)
+    md5.update(str(config_files))
+    config_digest = md5.hexdigest()
+
+    if CONFIG.has_key(config_digest):
+        lg.debug("returning digest from CONFIG cache ({}) ({})".format(config_digest, name))
+        return CONFIG[config_digest]
+
+    new_config = Yaco.PolyYaco(name, base=base_config, files=config_files)
+    CONFIG[config_digest] = new_config
+    return new_config
 
 
 class app(object):
@@ -133,7 +152,6 @@ class app(object):
 
                 lg.debug("attempting to load plugin from module {0}".format(
                     module_name))
-                modbase, modsub = module_name.rsplit('.', 1)
                 mod = importlib.import_module(module_name)
 
                 self.plugins[plugin_name] = mod
@@ -170,10 +188,16 @@ class app(object):
 
         :param mod: an imported module or a globals dict
         """
-        self.run_init_hook(self, mod)
-        self.discover_2(self, mod)
 
-    def run_init_hook(self, mod)
+        if isinstance(mod, dict):
+            mod_objects = mod
+        else:
+            mod_objects = mod.__dict__
+
+        self.run_init_hook(mod_objects)
+        self.discover_2(mod_objects)
+
+    def run_init_hook(self, mod_objects):
         """
         Run prediscovery initialization hook for this module.
 
@@ -183,14 +207,13 @@ class app(object):
         For a hook to be executed as a prediscovery init hook, it needs to be
         decorated with: ''@leip.init''
         """
-        if isinstance(mod, dict):
-            mod_objects = mod
-        else:
-            mod_objects = mod.__dict__
 
         leip_init_hook = None
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
+
+            if isinstance(obj, Yaco.Yaco):
+                continue
 
             #see if this is a function decorated as hook
             if hasattr(obj, '__call__') and \
@@ -202,12 +225,15 @@ class app(object):
             # the module has access to configuration
             leip_init_hook(self)
 
-    def discover_2(self, mod):
+    def discover_2(self, mod_objects):
         """
         Execute actual discovery of leip tagged functions & hooks
         """
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
+
+            if isinstance(obj, Yaco.Yaco):
+                continue
 
             #see if this is a function decorated as hook
             if not hasattr(obj, '__call__'):
@@ -215,7 +241,9 @@ class app(object):
 
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
-                prio = obj._leip_hook_priority
+                if isinstance(hook, Yaco.Yaco):
+                    continue
+                prio = obj.__dict__.get('_leip_hook_priority', 100)
                 lg.debug("discovered hook %s (%d) in %s" % (
                         hook, prio, obj.__name__))
                 self.hooks[hook].append(
@@ -223,7 +251,6 @@ class app(object):
 
             if hasattr(obj, '_leip_command'):
                 self.register_command(obj)
-
 
     def register_command(self, function):
         cname = function._leip_command
@@ -237,20 +264,19 @@ class app(object):
             _desc = function.__doc__.strip().split("\n", 1)
 
         if len(_desc) == 2:
-            shortDesc, longDesc = _desc
+            short_description, long_description = _desc
         else:
-            shortDesc, longDesc = _desc[0], ""
+            short_description, long_description = _desc[0], ""
 
-        longDesc = textwrap.dedent(longDesc)
+        long_description = textwrap.dedent(long_description)
 
-        cp = self.subparser.add_parser(cname, help=shortDesc,
-                                       description=longDesc)
+        cp = self.subparser.add_parser(cname, help=short_description,
+                                       description=long_description)
 
         for args, kwargs in function._leip_args:
             cp.add_argument(*args, **kwargs)
 
         function._cparser = cp
-
 
     def register_hook(self, name, priority, function):
         lg.debug("registering hook {0} / {1}".format(name, function))
@@ -273,13 +299,9 @@ class app(object):
             self.run_hook(hook)
 
 
-
-
-
 ##
 ## Command decorators
 ##
-
 def command(f):
     """
     Tag a function to become a command - take the function name and
@@ -289,6 +311,7 @@ def command(f):
     f._leip_args = []
     lg.debug("marking function as leip command: %s" % f.__name__)
     return f
+
 
 def commandName(name):
     """
@@ -301,6 +324,7 @@ def commandName(name):
         return f
     return decorator
 
+
 def arg(*args, **kwargs):
     """
     add an argument to a command - use the full argparse syntax
@@ -310,6 +334,7 @@ def arg(*args, **kwargs):
         f._leip_args.append((args, kwargs))
         return f
     return decorator
+
 
 def flag(self, *args, **kwargs):
     """
@@ -322,10 +347,10 @@ def flag(self, *args, **kwargs):
         return f
     return decorator
 
+
 ##
 ## Pre discovery init hook decorators
 ##
-
 def init(f):
     """
     Mark this function as a pre discovery init hook.get_config.
@@ -335,11 +360,11 @@ def init(f):
     f._leip_init_hook = f.__name__
     return f
 
+
 ##
 ## Hook decorators
 ##
-
-def hook(name, priority = 50):
+def hook(name, priority=50):
     """
     mark this function as a hook for later execution
 
