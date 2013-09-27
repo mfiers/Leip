@@ -19,7 +19,7 @@ Ultralightweight python CLI framework
 """
 
 setup(name='leip',
-      version='0.0.10',
+      version='0.0.11',
       description=DESCRIPTION,
       author='Mark Fiers',
       author_email='mark.fiers.42@gmail.com',
@@ -28,10 +28,10 @@ setup(name='leip',
       #tests_require = ['tox'],
       #cmdclass = {'test': Tox},
       requires=[
-        'Yaco (>=0.1.11)',
-        ],
-      package_dir = {'Leip': 'leip'},
-      classifiers = [
+          'Yaco (>=0.1.11)',
+      ],
+      package_dir={'Leip': 'leip'},
+      classifiers=[
           'Development Status :: 4 - Beta',
           'Environment :: Console',
           'Intended Audience :: Developers',
@@ -40,6 +40,5 @@ setup(name='leip',
           'Programming Language :: Python :: 2.7',
           #'Programming Language :: Python :: 3',
           #'Programming Language :: Python :: 3.3',
-          ]
-
-     )
+      ]
+    )
