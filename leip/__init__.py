@@ -40,8 +40,7 @@ def get_config(name, config_files=None, base_location=None, base_config=None):
     if not config_files is None:
         config_files = [
             sys.argv[0] + '.config',
-            '/etc/{0}.config'.format(name),
-            '~/.config/{0}/{0}.config'.format(name)]
+            '/etc/{0}/'.format(name)]
 
     md5 = hashlib.md5()
     md5.update(name)
