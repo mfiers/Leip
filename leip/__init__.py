@@ -25,27 +25,18 @@ lg = logging.getLogger(__name__)
 CONFIG = {}
 
 
-def get_config(name, config_files=None, base_location=None, base_config=None):
+def get_config(name, config_files=None):
 
     global CONFIG
 
-    if base_config is None:
-        if base_location is None:
-            base_location = os.path.join('etc', '{}.config'.format(name))
-        try:
-            base_config = pkg_resources.resource_string(name, base_location)
-        except IOError:
-            lg.debug("Leip cannot find package base config")
-
-    if not config_files is None:
+    if config_files is None:
         config_files = [
+            'pkg://{}/etc/*.config'.format(name),
             sys.argv[0] + '.config',
             '/etc/{0}/'.format(name)]
 
     md5 = hashlib.md5()
     md5.update(name)
-    if not base_config is None:
-        md5.update(base_config)
     md5.update(str(config_files))
     config_digest = md5.hexdigest()
 
@@ -53,7 +44,7 @@ def get_config(name, config_files=None, base_location=None, base_config=None):
         lg.debug("returning digest from CONFIG cache ({}) ({})".format(config_digest, name))
         return CONFIG[config_digest]
 
-    new_config = Yaco.PolyYaco(name, base=base_config, files=config_files)
+    new_config = Yaco.PolyYaco(name, files=config_files)
     CONFIG[config_digest] = new_config
     return new_config
 
@@ -62,9 +53,7 @@ class app(object):
 
     def __init__(self, name=None,
                  config_files = None,
-                 set_name = 'set',
-                 base_config=None,
-                 base_config_location = None):
+                 set_name = 'set'):
         """
 
         :param name: base name of the applications
@@ -78,10 +67,6 @@ class app(object):
            if set to None, no set function is available. Default='set'
         :type set_name: string
 
-        :param base_config: basis configuration on top of which the
-           rest is loaded. This allows a developer to, for example,
-           extra a default configuration from a pacakge
-        :type base_config: yaml string
         """
 
         if name is None:
@@ -102,23 +87,12 @@ class app(object):
             title = 'command', dest='command',
             help='"{}" command to execute'.format(name))
 
-        #configuration object
-        if not config_files:
-            config_files = [
-                sys.argv[0] + '.config',
-                '/etc/{0}.config'.format(name),
-                '~/.config/{0}/{0}.config'.format(name)]
-
         #contains transient data - execution specific
         self.trans = Yaco.Yaco()
 
         #contains configuration data
-        self.conf = Yaco.PolyYaco(name, base = base_config, files = config_files)
         self.conf = get_config(self.name,
-                               config_files=config_files,
-                               base_location=base_config_location,
-                               base_config=base_config )
-        self.conf.load()
+                               config_files=config_files)
 
         #create a 'set' command to manipulate the configuration
         def _conf_set(app, args):

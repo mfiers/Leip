@@ -1,27 +1,21 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-#from setuptools.command.test import test as TestCommand
-
-#class Tox(TestCommand):
-#    def finalize_options(self):
-#        TestCommand.finalize_options(self)
-#        self.test_args = []
-#        self.test_suite = True
-#    def run_tests(self):
-#        #import here, cause outside the eggs aren't loaded
-#        import tox
-#        errno = tox.cmdline(self.test_args)
-#        sys.exit(errno)
 
 DESCRIPTION = """
 Ultralightweight python CLI framework
 """
 
+entry_points = {
+    'console_scripts': [
+        'leip = leip.cli:dispatch'
+        ]}
+
 setup(name='leip',
-      version='0.0.11',
+      version='0.0.12',
       description=DESCRIPTION,
       author='Mark Fiers',
+      entry_points = entry_points,
       author_email='mark.fiers.42@gmail.com',
       url='http://mfiers.github.com/Leip',
       packages=find_packages(),
