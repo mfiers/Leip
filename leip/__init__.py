@@ -18,7 +18,7 @@ import Yaco
 
 logging.basicConfig()
 lg = logging.getLogger(__name__)
-#lg.setLevel(logging.DEBUG)
+lg.setLevel(logging.WARNING)
 
 
 #cache config files
@@ -34,6 +34,9 @@ def get_config(name, config_files=None):
             'pkg://{}/etc/*.config'.format(name),
             sys.argv[0] + '.config',
             '/etc/{0}/'.format(name)]
+
+    for c in config_files:
+        lg.debug("config file: {}".format(c))
 
     md5 = hashlib.md5()
     md5.update(name)
