@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 """
 Test 1
 """
 
 import leip
 
-app = leip.app()
 
-@app.arg('name', help='Name to say hello to', default='world')
-@app.command
+@leip.arg('name', help='Name to say hello to', default='world')
+@leip.command
 def hello(app, args):
     """
     Run the proverbial hello world test
@@ -20,4 +19,7 @@ def hello(app, args):
     """
     print("Hello %s" % args.name)
 
-app.run()
+if __name__ == '__main__':
+    app = leip.app()
+    app.discover(locals())
+    app.run()

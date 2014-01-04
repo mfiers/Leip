@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 """
 Test 2 - use the configuration object
 """
@@ -24,11 +24,11 @@ test_2:
   - 3"""
 
 test_twee = """test_1: b
-test_3: 
+test_3:
   sub_1:
     sub_2: subsubval"""
 
-lg.info("saving dummy configuration files") 
+lg.info("saving dummy configuration files")
 
 with open(conf_een, 'w') as F:
     F.write(test_een)
@@ -37,13 +37,10 @@ with open(conf_twee, 'w') as F:
 
 
 lg.debug('instantiating app')
-app = leip.app(
-    config_files = (('een', conf_een),
-                    ('twee', conf_twee))
-    )
 
-@app.arg('name', help='Name to say hello to', default='world')
-@app.command
+
+@leip.arg('name', help='Name to say hello to', default='world')
+@leip.command
 def hello(app, args):
     """
     Run the proverbial hello world test
@@ -54,7 +51,7 @@ def hello(app, args):
     """
     print("Hello %s" % args.name)
 
-@app.command
+@leip.command
 def test(app, args):
     """
     Run a few tests
@@ -64,10 +61,10 @@ def test(app, args):
     global conf_twee
 
     app.conf.animal = 'rabbit'
-    app.conf.save()
+    #app.conf.save()
 
     x = app.conf.simple()
-    
+
     with open(os.path.join(conf_een)) as F:
         c1 = F.read()
     with open(os.path.join(conf_twee)) as F:
@@ -75,9 +72,14 @@ def test(app, args):
 
     assert(app.conf.test_1 == 'b')
     assert(app.conf.test_3.sub_1.sub_2 == 'subsubval')
+    lg.setLevel(logging.DEBUG)
     lg.debug("combined %s" % str(x))
     lg.debug("one:\n%s\n####" % str(c1))
     lg.debug("two:\n%s\n####" % str(c2))
 
-app.run()
+if __name__ == '__main__':
+    app = leip.app(
+        config_files = [conf_een, conf_twee])
+    app.discover(locals())
+    app.run()
 

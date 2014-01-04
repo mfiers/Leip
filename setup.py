@@ -1,10 +1,18 @@
 #!/usr/bin/env python
 
+import sys
 from setuptools import setup, find_packages
 
 DESCRIPTION = """
 Ultralightweight python CLI framework
 """
+
+
+if sys.version < '3':
+      package_dir = {'': 'src.2'}
+
+else:
+      package_dir = {'': 'src.3'}
 
 entry_points = {
     'console_scripts': [
@@ -12,27 +20,23 @@ entry_points = {
         ]}
 
 setup(name='leip',
-      version='0.0.14',
+      version='0.0.15',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points = entry_points,
       author_email='mark.fiers.42@gmail.com',
       url='http://mfiers.github.com/Leip',
       packages=find_packages(),
-      #tests_require = ['tox'],
-      #cmdclass = {'test': Tox},
+      package_dir=package_dir,
       requires=[
-          'Yaco (>=0.1.11)',
+          'Yaco (>=0.1.26)',
       ],
-      package_dir={'Leip': 'leip'},
       classifiers=[
           'Development Status :: 4 - Beta',
           'Environment :: Console',
           'Intended Audience :: Developers',
           'Operating System :: OS Independent',
-          'Programming Language :: Python :: 2.6',
           'Programming Language :: Python :: 2.7',
-          #'Programming Language :: Python :: 3',
-          #'Programming Language :: Python :: 3.3',
+          'Programming Language :: Python :: 3.3',
       ]
     )

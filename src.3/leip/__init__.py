@@ -16,34 +16,37 @@ import textwrap
 
 import Yaco
 
-logging.basicConfig()
+logformat = "%(levelname)s|%(module)s|%(message)s"
+logging.basicConfig(format=logformat)
 lg = logging.getLogger(__name__)
 lg.setLevel(logging.WARNING)
-
 
 #cache config files
 CONFIG = {}
 
 
-def get_config(name, config_files=None):
+def get_config(name, package_name=None, config_files=None):
 
     global CONFIG
 
+    if package_name is None:
+        package_name = name
+
     if config_files is None:
         config_files = [
-            'pkg://{}/etc/*.config'.format(name),
-            sys.argv[0] + '.config',
+            'pkg://{}/etc/*.config'.format(package_name),
+            os.path.join(os.path.expanduser('~'), '.config', name + '/'),
             '/etc/{0}/'.format(name)]
 
     for c in config_files:
         lg.debug("config file: {}".format(c))
 
     md5 = hashlib.md5()
-    md5.update(name)
-    md5.update(str(config_files))
+    md5.update(name.encode('ascii', 'backslashreplace'))
+    md5.update(str(config_files).encode('ascii', 'backslashreplace'))
     config_digest = md5.hexdigest()
 
-    if CONFIG.has_key(config_digest):
+    if config_digest in CONFIG:
         lg.debug("returning digest from CONFIG cache ({}) ({})".format(config_digest, name))
         return CONFIG[config_digest]
 
@@ -54,7 +57,9 @@ def get_config(name, config_files=None):
 
 class app(object):
 
-    def __init__(self, name=None,
+    def __init__(self,
+                 name=None,
+                 package_name = None,
                  config_files = None,
                  set_name = 'set'):
         """
@@ -74,7 +79,12 @@ class app(object):
 
         if name is None:
             name = os.path.basename(sys.argv[0])
+
+        if package_name is None:
+            package_name = name
+
         self.name = name
+        self.package_name = package_name
 
         lg.debug("Starting Leip app")
         self.leip_commands = {}
@@ -95,6 +105,7 @@ class app(object):
 
         #contains configuration data
         self.conf = get_config(self.name,
+                               package_name=self.package_name,
                                config_files=config_files)
 
         #create a 'set' command to manipulate the configuration
@@ -285,7 +296,6 @@ def command(f):
     """
     f._leip_command = f.__name__
     f._leip_args = []
-    lg.debug("marking function as leip command: %s" % f.__name__)
     return f
 
 
