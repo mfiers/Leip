@@ -26,7 +26,7 @@ def dispatch():
 @leip.arg('name', help='say hello to')
 @leip.command
 def hello_world(app, args):
-    print "{{}} {{}}".format(app.conf.message, args.name)
+    print("{{}} {{}}".format(app.conf.message, args.name))
 
 
 app = leip.app(name='{name}', set_name=None)
@@ -119,7 +119,7 @@ def create(app, args):
     readme = os.path.join(project, 'README')
     create_file(readme, README_TEMPLATE.format(**tdata))
 
-    conf = os.path.join(src, 'etc', '{}.config'.format(name))
+    conf = os.path.join(src, 'etc', '_{}.config'.format(name))
     create_file(conf, CONF_TEMPLATE)
 
     setup_py = os.path.join(project, 'setup.py')
