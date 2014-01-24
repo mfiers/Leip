@@ -95,6 +95,7 @@ class app(object):
         self.parser = argparse.ArgumentParser()
 
         self.parser.add_argument('-v', '--verbose', action='store_true')
+        self.parser.add_argument('-q', '--quiet', action='store_true')
 
         self.subparser = self.parser.add_subparsers(
             title = 'command', dest='command',
@@ -158,7 +159,14 @@ class app(object):
         #register parse arguments as a hook
         def _prep_args(app):
             self.trans.args = self.parser.parse_args()
+            rootlogger = logging.getLogger()
             if self.trans.args.verbose:
+                rootlogger.setLevel(logging.DEBUG)
+            elif self.trans.args.quiet:
+                rootlogger.setLevel(logging.WARNING)
+            else:
+                rootlogger.setLevel(logging.INFO)
+
                 rootlogger = logging.getLogger()
                 rootlogger.setLevel(logging.DEBUG)
 
