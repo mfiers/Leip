@@ -8,6 +8,7 @@ import argparse
 from collections import defaultdict
 import hashlib
 import logging
+import inspect
 import importlib
 import os
 import pkg_resources
@@ -19,7 +20,7 @@ import Yaco
 logformat = "%(levelname)s|%(module)s|%(message)s"
 logging.basicConfig(format=logformat)
 lg = logging.getLogger(__name__)
-lg.setLevel(logging.WARNING)
+lg.setLevel(logging.INFO)
 
 #cache config files
 CONFIG = {}
@@ -95,6 +96,7 @@ class app(object):
         self.parser = argparse.ArgumentParser()
 
         self.parser.add_argument('-v', '--verbose', action='store_true')
+        self.parser.add_argument('-q', '--quiet', action='store_true')
 
         self.subparser = self.parser.add_subparsers(
             title = 'command', dest='command',
@@ -158,9 +160,13 @@ class app(object):
         #register parse arguments as a hook
         def _prep_args(app):
             self.trans.args = self.parser.parse_args()
+            rootlogger = logging.getLogger()
             if self.trans.args.verbose:
-                rootlogger = logging.getLogger()
                 rootlogger.setLevel(logging.DEBUG)
+            elif self.trans.args.quiet:
+                rootlogger.setLevel(logging.WARNING)
+            else:
+                rootlogger.setLevel(logging.INFO)
 
         self.register_hook('prepare', 50, _prep_args)
 
@@ -202,10 +208,17 @@ class app(object):
             if isinstance(obj, Yaco.Yaco):
                 continue
 
-            #see if this is a function decorated as hook
-            if hasattr(obj, '__call__') and \
-                    hasattr(obj, '_leip_init_hook'):
-                leip_init_hook = obj
+            if not inspect.isfunction(obj):
+                continue
+
+            try:
+                #see if this is a function decorated as hook
+                if hasattr(obj, '__call__') and \
+                        hasattr(obj, '_leip_init_hook'):
+                    leip_init_hook = obj
+            except:
+                #probably not a hook
+                pass
 
         if not leip_init_hook is None:
             # execute init_hook - with the app - so
@@ -223,21 +236,29 @@ class app(object):
                 continue
 
             #see if this is a function decorated as hook
-            if not hasattr(obj, '__call__'):
+            if not inspect.isfunction(obj):
                 continue
 
-            if hasattr(obj, '_leip_hook'):
-                hook = obj._leip_hook
-                if isinstance(hook, Yaco.Yaco):
-                    continue
-                prio = obj.__dict__.get('_leip_hook_priority', 100)
-                lg.debug("discovered hook %s (%d) in %s" % (
-                        hook, prio, obj.__name__))
-                self.hooks[hook].append(
-                    (prio, obj))
+            hook = None
+            prio = 100
+            try:
+                if hasattr(obj, '_leip_hook'):
+                    hook = obj._leip_hook
+                    prio = obj.__dict__.get('_leip_hook_priority', 100)
+            except:
+                pass
+            else:
+                if not isinstance(hook, Yaco.Yaco):
+                    lg.debug("discovered hook %s (%d) in %s" % (
+                            hook, prio, obj.__name__))
+                    self.hooks[hook].append(
+                        (prio, obj))
 
-            if hasattr(obj, '_leip_command'):
-                self.register_command(obj)
+            try:
+                if hasattr(obj, '_leip_command'):
+                    self.register_command(obj)
+            except:
+                pass
 
     def register_command(self, function):
         cname = function._leip_command
