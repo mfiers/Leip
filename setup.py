@@ -1,16 +1,13 @@
 #!/usr/bin/env python
 
 import sys
-from setuptools import setup, find_packages
+from setuptools import setup
 
-DESCRIPTION = """
-Ultralightweight python CLI framework
-"""
+DESCRIPTION = "Ultralightweight python CLI framework"
 
 
 if sys.version < '3':
       package_dir = {'': 'src.2'}
-
 else:
       package_dir = {'': 'src.3'}
 
@@ -20,13 +17,14 @@ entry_points = {
         ]}
 
 setup(name='leip',
-      version='0.0.15',
+      version='0.0.18',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points = entry_points,
       author_email='mark.fiers.42@gmail.com',
       url='http://mfiers.github.com/Leip',
-      packages=find_packages(),
+      packages=['leip'],
+      include_package_data=True,
       package_dir=package_dir,
       requires=[
           'Yaco (>=0.1.26)',

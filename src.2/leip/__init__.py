@@ -167,9 +167,6 @@ class app(object):
             else:
                 rootlogger.setLevel(logging.INFO)
 
-                rootlogger = logging.getLogger()
-                rootlogger.setLevel(logging.DEBUG)
-
         self.register_hook('prepare', 50, _prep_args)
 
         #hook run order
