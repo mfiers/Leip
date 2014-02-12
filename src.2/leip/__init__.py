@@ -17,7 +17,7 @@ import textwrap
 
 import Yaco
 
-logformat = "%(levelname)s|%(module)s|%(message)s"
+logformat = "%(levelname)s|%(name)s|%(module)s|%(message)s"
 logging.basicConfig(format=logformat)
 lg = logging.getLogger(__name__)
 lg.setLevel(logging.INFO)
@@ -130,6 +130,9 @@ class app(object):
         if 'plugin' in self.conf:
             for plugin_name in self.conf.plugin:
                 lg.debug("loading plugin %s" % plugin_name)
+
+                if not 'module' in self.conf.plugin[plugin_name]:
+                    continue
 
                 module_name = self.conf.plugin[plugin_name].module.strip()
 
@@ -246,6 +249,11 @@ class app(object):
 
     def register_command(self, function):
         cname = function._leip_command
+        if hasattr(function, '_leip_usage'):
+            usage = function._leip_usage
+        else:
+            usage = None
+
         lg.debug("discovered command %s" % cname)
 
         self.leip_commands[cname] = function
@@ -262,8 +270,9 @@ class app(object):
 
         long_description = textwrap.dedent(long_description)
 
-        cp = self.subparser.add_parser(cname, help=short_description,
-                                       description=long_description)
+        cp = self.subparser.add_parser(
+                cname, usage=usage, help=short_description,
+                description=long_description)
 
         for args, kwargs in function._leip_args:
             cp.add_argument(*args, **kwargs)
@@ -317,6 +326,16 @@ def commandName(name):
         return f
     return decorator
 
+
+def usage(usage):
+    """
+    add a usage string to a command
+    """
+    def decorator(f):
+        lg.debug("adding usage argument {0}".format(usage))
+        f._leip_usage=usage
+        return f
+    return decorator
 
 def arg(*args, **kwargs):
     """
