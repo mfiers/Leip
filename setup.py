@@ -6,10 +6,10 @@ from setuptools import setup
 DESCRIPTION = "Ultralightweight python CLI framework"
 
 
-if sys.version < '3':
-      package_dir = {'': 'src.2'}
-else:
-      package_dir = {'': 'src.3'}
+
+extra = {}
+if sys.version_info >= (3,):
+    extra['use_2to3'] = True
 
 entry_points = {
     'console_scripts': [
@@ -17,7 +17,7 @@ entry_points = {
         ]}
 
 setup(name='leip',
-      version='0.0.18',
+      version='0.0.19',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points = entry_points,
@@ -25,7 +25,7 @@ setup(name='leip',
       url='http://mfiers.github.com/Leip',
       packages=['leip'],
       include_package_data=True,
-      package_dir=package_dir,
+      package_dir={'': 'src'},
       requires=[
           'Yaco (>=0.1.26)',
       ],
@@ -36,5 +36,6 @@ setup(name='leip',
           'Operating System :: OS Independent',
           'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3.3',
-      ]
+      ],
+      **extra
     )
