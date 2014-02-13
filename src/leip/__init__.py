@@ -359,7 +359,7 @@ def flag(self, *args, **kwargs):
     def decorator(f):
         kwargs['action'] = kwargs.get('action', 'store_true')
         kwargs['default'] = kwargs.get('default', False)
-        f._cparser.add_argument(*args, **kwargs)
+        f._leip_args.append((args, kwargs))
         return f
     return decorator
 
