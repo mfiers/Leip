@@ -42,8 +42,12 @@ def get_config(name, package_name=None, config_files=None):
         lg.debug("config file: {}".format(c))
 
     md5 = hashlib.md5()
-    md5.update(name)
-    md5.update(str(config_files))
+    if sys.version_info[0] == 3:
+        md5.update(name.encode('utf-8'))
+        md5.update(str(config_files).encode('utf-8'))
+    else:
+        md5.update(name)
+        md5.update(str(config_files))
     config_digest = md5.hexdigest()
 
     if CONFIG.has_key(config_digest):
