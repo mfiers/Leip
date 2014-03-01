@@ -14,7 +14,6 @@ def dispatch():
     app.run()
 
 CLI_TEMPLATE = '''
-
 import leip
 
 def dispatch():
@@ -26,7 +25,7 @@ def dispatch():
 @leip.arg('name', help='say hello to')
 @leip.command
 def hello_world(app, args):
-    print "{{}} {{}}".format(app.conf.message, args.name)
+    print "{{}} {{}}".format(app.conf['message'], args.name)
 
 
 app = leip.app(name='{name}', set_name=None)

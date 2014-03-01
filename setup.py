@@ -17,7 +17,7 @@ entry_points = {
         ]}
 
 setup(name='leip',
-      version='0.0.20',
+      version='0.1.0',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points = entry_points,
@@ -27,7 +27,7 @@ setup(name='leip',
       include_package_data=True,
       package_dir={'': 'src'},
       requires=[
-          'Yaco (>=0.1.26)',
+          'Yaco2 (>=0.1)',
       ],
       classifiers=[
           'Development Status :: 4 - Beta',
