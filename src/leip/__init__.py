@@ -4,15 +4,14 @@
 Leip
 """
 
+from __future__ import print_function
+
 import argparse
 from collections import defaultdict
-import hashlib
 import logging
 import importlib
 import os
-import pkg_resources
 import sys
-import traceback
 import textwrap
 
 import Yaco2
@@ -20,7 +19,14 @@ import Yaco2
 logformat = "%(levelname)s|%(name)s|%(module)s|%(message)s"
 logging.basicConfig(format=logformat)
 lg = logging.getLogger(__name__)
-lg.setLevel(logging.INFO)
+
+# hack to quickly get the verbosity set properly:
+if '-v' in sys.argv:
+    lg.setLevel(logging.DEBUG)
+elif '-q' in sys.argv:
+    lg.setLevel(logging.WARNING)
+else:
+    lg.setLevel(logging.INFO)
 
 # cache config files
 CONFIG = {}
@@ -144,18 +150,22 @@ class app(object):
 
         # register command run as a hook
         def _run_command(app):
+
             command = self.trans['args'].command
 
             if command is None:
                 self.parser.print_help()
                 sys.exit(0)
 
+            lg.debug("run command: {}".format(command))
             if command in self.leip_subparsers:
                 subcommand = getattr(self.trans['args'], command)
                 function = self.leip_subparsers[command][subcommand]
                 function(self, self.trans['args'])
             else:
-                self.leip_commands[command](self, self.trans['args'])
+                func = self.leip_commands[command]
+                lg.debug("run function: {}".format(func))
+                func(self, self.trans['args'])
 
         self.register_hook('run', 50, _run_command)
 
@@ -263,8 +273,8 @@ class app(object):
 
         is_subcommand = False
         parent = None
-        if hasattr(function, '_leip_subcommand') and \
-                function._leip_subcommand:
+        subcommand_name = getattr(function, '_leip_subcommand', False)
+        if subcommand_name:
             is_subcommand = True
             parent = function._leip_parent
 
@@ -310,9 +320,9 @@ class app(object):
                 function._leip_subparser = subp
         else:
             parent_name = parent._leip_command
-            self.leip_subparsers[parent_name][cname] = function
+            self.leip_subparsers[parent_name][subcommand_name] = function
             cp = parent._leip_subparser.add_parser(
-                cname, usage=usage,
+                subcommand_name, usage=usage,
                 help=short_description,
                 description=long_description)
 
@@ -377,7 +387,8 @@ def subcommand(parent, command_name=None):
         lg.debug("marking function as leip subcommand: %s" % command_name)
         f._leip_subcommand = True
         f._leip_parent = parent
-        f._leip_command = command_name
+        f._leip_subcommand = command_name
+        f._leip_command = "{}.{}".format(parent._leip_command, command_name)
         f._leip_args = []
         return f
     return decorator
@@ -489,14 +500,31 @@ def conf_set(app, args):
     app.conf[args.key] = args.value
 
 
+@arg("key", nargs='?')
+@subcommand(conf, "get")
+def conf_get(app, args):
+    """
+    Get the value of a configuration variable
+    """
+    print(app.conf.get(args.key, ""))
+
+
 @arg("prefix", nargs='?')
 @subcommand(conf, "show")
 def conf_show(app, args):
     """
     list all configuration variables
     """
-    for k in app.conf.keys():
-        print k, app.conf[k]
+    if args.prefix:
+        data = app.conf.get_branch(args.prefix)
+    else:
+        data = app.conf
+
+    for k in data.keys():
+        if args.prefix:
+            print('{0}.{1}: {2}'.format(args.prefix, k, data[k]))
+        else:
+            print(k, data[k])
 
 
 @arg("prefix", nargs='?')
@@ -512,18 +540,28 @@ def conf_keys(app, args):
 
     for k in data.keys():
         if args.prefix:
-            print '{0}.{1}'.format(args.prefix, k)
+            print('{0}.{1}'.format(args.prefix, k))
         else:
-            print k
+            print(k)
 
 
+@flag('-c', '--clear', help='clear configuration db first')
+@subcommand(conf, "rehash")
+def _conf_rehash(app, args):
+    """
+    Read & set configuration from the default pacakge data
+    """
+    app.conf.clear()
+    app.conf = get_config(
+        app.name,
+        package_name=app.package_name,
+        config_files=app.config_files,
+        rehash=True)
 
-# def _conf_rehash(app, args):
-#     """
-#     Read & set configuration from the original data
-#     """
-#     self.conf = get_config(
-#         self.name,
-#         package_name=self.package_name,
-#         config_files=self.config_files,
-#         rehash=True)
+
+@subcommand(conf, "clear")
+def _conf_clear(app, args):
+    """
+    Clear configuratino database
+    """
+    app.conf.clear()
