@@ -25,7 +25,7 @@ setup(name='leip',
       include_package_data=True,
       package_dir={'': 'src'},
       requires=[
-          'Yaco2 (>=0.1)',
+          'fantail',
       ],
       classifiers=[
           'Development Status :: 4 - Beta',
