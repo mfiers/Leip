@@ -5,8 +5,6 @@ from setuptools import setup
 
 DESCRIPTION = "Ultralightweight python CLI framework"
 
-
-
 extra = {}
 if sys.version_info >= (3,):
     extra['use_2to3'] = True

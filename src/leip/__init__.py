@@ -8,13 +8,14 @@ from __future__ import print_function
 
 import argparse
 from collections import defaultdict
+import cPickle
 import logging
 import importlib
 import os
 import sys
 import textwrap
 
-import Yaco2
+import fantail
 
 logformat = "%(levelname)s|%(name)s|%(module)s|%(message)s"
 logging.basicConfig(format=logformat)
@@ -43,14 +44,25 @@ def get_config(name, package_name=None, config_files=None,
     if not rehash and CONFIG.has_key(name):
         return CONFIG[name]
 
-    yaco_db_location = os.path.join(os.path.expanduser('~'),
-                                    '.config', name, 'yaco2.db')
+    conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
+    if not os.path.exists(conf_dir):
+        os.makedirs(conf_dir)
 
-    db_existed = os.path.exists(yaco_db_location)
-    conf = Yaco2.YacoDb(yaco_db_location)
+    conf_location = os.path.join(conf_dir, '{}.config.pickle'.format(name))
+
+    db_existed = (os.path.exists(conf_location) and
+                  os.path.getsize(conf_location) > 0)
+    if db_existed:
+        lg.debug("opening cached configuration: %s", conf_location)
+        with open(conf_location) as F:
+            conf = cPickle.load(F)
+    else:
+        conf = fantail.Fantail()
+
     CONFIG[name] = conf
 
     if not rehash and db_existed:
+        lg.debug("finished getting conf - returning cached")
         return conf
 
     # Ok - either the path did not exist - or - a rehash is required
@@ -63,8 +75,11 @@ def get_config(name, package_name=None, config_files=None,
             '/etc/{0}/'.format(name)]
 
     for c in config_files:
-        lg.debug("config file: {}".format(c))
-        Yaco2.load(conf, c)
+        lg.warning("config file: {}".format(c))
+        conf.update(fantail.load(c))
+
+    with open(conf_location, 'wb') as F:
+        cPickle.dump(conf, F)
 
     return conf
 
@@ -114,13 +129,15 @@ class app(object):
 
         self.parser.add_argument('-v', '--verbose', action='store_true')
         self.parser.add_argument('-q', '--quiet', action='store_true')
+        self.parser.add_argument('--profile', action='store_true',
+                                 help=argparse.SUPPRESS)
 
         self.subparser = self.parser.add_subparsers(
             title='command', dest='command',
             help='"{}" command to execute'.format(name))
 
         # contains transient data - execution specific
-        self.trans = Yaco2.Yaco()
+        self.trans = fantail.Fantail()
 
         # contains configuration data
         self.conf = get_config(self.name,
@@ -128,8 +145,10 @@ class app(object):
                                config_files=self.config_files)
 
         # check for and load plugins
-        for plugin in self.conf.find('plugin'):
-            plugin_name = plugin.leaf()
+        plugins = self.conf['plugin']
+        for plugin_name in plugins:
+
+            plugin = plugins[plugin_name]
 
             lg.debug("loading plugin %s" % plugin_name)
 
@@ -153,6 +172,25 @@ class app(object):
 
             command = self.trans['args'].command
 
+            profile = self.trans['args'].profile
+
+            # if profile:
+            #     lg.warning("running profiler!")
+            #     import cProfile
+            #     import os
+            #     import pstats
+            #     import tempfile
+            #     pr = cProfile.Profile()
+            #     pr.enable()
+            #     app.run()
+            #     pr.disable()
+            #     handle = tempfile.NamedTemporaryFile(
+            #         delete=False, dir=os.getcwd(), prefix='Mad2.', suffix='.profiler')
+            #     sortby = 'cumulative'
+            #     ps = pstats.Stats(pr, stream=handle).sort_stats(sortby)
+            #     ps.print_stats()
+            #     handle.close()
+
             if command is None:
                 self.parser.print_help()
                 sys.exit(0)
@@ -171,7 +209,8 @@ class app(object):
 
         # register parse arguments as a hook
         def _prep_args(app):
-            self.trans['args'] = self.parser.parse_args()
+            args = self.parser.parse_args()
+            self.trans['args'] = args
             rootlogger = logging.getLogger()
             if self.trans['args'].verbose:
                 rootlogger.setLevel(logging.DEBUG)
@@ -219,7 +258,7 @@ class app(object):
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
 
-            if isinstance(obj, Yaco2.Yaco):
+            if isinstance(obj, fantail.Fantail):
                 continue
 
             # see if this is a function decorated as hook
@@ -242,7 +281,7 @@ class app(object):
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
 
-            if isinstance(obj, Yaco2.Yaco):
+            if isinstance(obj, fantail.Fantail):
                 continue
 
             # see if this is a function decorated as hook
@@ -251,7 +290,7 @@ class app(object):
 
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
-                if isinstance(hook, Yaco2.Yaco):
+                if isinstance(hook, fantail.Fantail):
                     continue
                 prio = obj.__dict__.get('_leip_hook_priority', 100)
                 lg.debug("discovered hook %s (%d) in %s" % (
@@ -516,7 +555,7 @@ def conf_show(app, args):
     list all configuration variables
     """
     if args.prefix:
-        data = app.conf.get_branch(args.prefix)
+        data = app.conf[args.prefix]
     else:
         data = app.conf
 
@@ -534,7 +573,7 @@ def conf_keys(app, args):
     list all configuration keys, optionally with a prefix
     """
     if args.prefix:
-        data = app.conf.get_branch(args.prefix)
+        data = app.conf[args.prefix]
     else:
         data = app.conf
 
