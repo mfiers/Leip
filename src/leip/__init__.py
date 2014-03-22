@@ -7,7 +7,7 @@ Leip
 from __future__ import print_function
 
 import argparse
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import cPickle
 import logging
 import importlib
@@ -33,8 +33,7 @@ else:
 CONFIG = {}
 
 
-def get_config(name, package_name=None, config_files=None,
-               rehash=False):
+def get_config(name, package_name=None, rehash=False):
 
     global CONFIG
 
@@ -45,6 +44,7 @@ def get_config(name, package_name=None, config_files=None,
         return CONFIG[name]
 
     conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
+
     if not os.path.exists(conf_dir):
         os.makedirs(conf_dir)
 
@@ -52,6 +52,7 @@ def get_config(name, package_name=None, config_files=None,
 
     db_existed = (os.path.exists(conf_location) and
                   os.path.getsize(conf_location) > 0)
+
     if db_existed:
         lg.debug("opening cached configuration: %s", conf_location)
         with open(conf_location) as F:
@@ -67,21 +68,55 @@ def get_config(name, package_name=None, config_files=None,
 
     # Ok - either the path did not exist - or - a rehash is required
 
-    # determine configuration file locations
-    if config_files is None:
-        config_files = [
-            'pkg://{}/etc/'.format(package_name),
-            os.path.join(os.path.expanduser('~'), '.config', name + '/'),
-            '/etc/{0}/'.format(name)]
+    # From where to read configuration files???
+    conf_fof = os.path.join(conf_dir, 'config.locations')
 
-    for c in config_files:
-        lg.warning("config file: {}".format(c))
-        conf.update(fantail.load(c))
+    if os.path.exists(conf_fof):
+        conflocs = load_conf_locations(conf_fof)
+    else:
+        conflocs = OrderedDict()
+        conflocs['package'] = 'pkg://{}/etc/'.format(package_name)
+        conflocs['system'] = '/etc/{}/'.format(name)
+        conflocs['user'] = \
+            os.path.join(os.path.expanduser('~'),
+                         '.config', name, 'config' + '/')
+        save_conf_locations(conf_fof, conflocs)
+
+    for name, location in conflocs.items():
+        lg.warning("loading config '{}': {}".format(name, location))
+        conf.update(fantail.load(location))
 
     with open(conf_location, 'wb') as F:
         cPickle.dump(conf, F)
 
     return conf
+
+
+def get_local_config_file(name):
+    return os.path.join(
+        os.path.expanduser('~'),
+        '.config', name, 'config', '_local.config')
+
+
+def get_conf_locations_fof(name):
+    conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
+    conf_fof = os.path.join(conf_dir, 'config.locations')
+    return conf_fof
+
+
+def load_conf_locations(conf_fof):
+    conflocs = OrderedDict()
+    with open(conf_fof) as F:
+        for line in F:
+            name, location = line.split()
+            conflocs[name] = location
+    return conflocs
+
+
+def save_conf_locations(conf_fof, conflocs):
+    with open(conf_fof, 'w') as F:
+        for name, location in conflocs.items():
+            F.write("{}\t{}\n".format(name, location))
 
 
 class app(object):
@@ -90,7 +125,7 @@ class app(object):
                  name=None,
                  package_name=None,
                  config_files=None,
-                 set_name='set',
+                 set_name='conf',
                  rehash_name='rehash'):
         """
 
@@ -141,8 +176,8 @@ class app(object):
 
         # contains configuration data
         self.conf = get_config(self.name,
-                               package_name=self.package_name,
-                               config_files=self.config_files)
+                               package_name=self.package_name)
+#                               config_files=self.config_files)
 
         # check for and load plugins
         plugins = self.conf['plugin']
@@ -548,6 +583,23 @@ def conf_get(app, args):
     print(app.conf.get(args.key, ""))
 
 
+@arg("field", nargs='?')
+@subcommand(conf, "find")
+def conf_find(app, args):
+    """
+    Find a key in the configuration
+    """
+    def _finder(conf, key, prefix=""):
+        if key in conf:
+            print('{}.{}'.format(prefix, key).strip('.'))
+        for k in conf:
+            if isinstance(conf[k], dict):
+                _finder(conf[k], key,
+                        '{}.{}'.format(prefix, k).strip('.'))
+
+    _finder(app.conf, args.field, "")
+
+
 @arg("prefix", nargs='?')
 @subcommand(conf, "show")
 def conf_show(app, args):
@@ -559,11 +611,21 @@ def conf_show(app, args):
     else:
         data = app.conf
 
-    for k in data.keys():
-        if args.prefix:
-            print('{0}.{1}: {2}'.format(args.prefix, k, data[k]))
+    if not isinstance(data, fantail.Fantail):
+        if data:
+            print(data)
         else:
-            print(k, data[k])
+            print('{} has no keys/value'.format(args.prefix))
+        exit(0)
+
+    for k in data.keys():
+        val = str(data[k])
+        if len(val) > 60:
+            val = (" ".join(val.split()))[:60] + '...'
+        if args.prefix:
+            print('{0}.{1}: {2}'.format(args.prefix, k, val))
+        else:
+            print('{0}: {1}'.format(k, val))
 
 
 @arg("prefix", nargs='?')
@@ -577,6 +639,12 @@ def conf_keys(app, args):
     else:
         data = app.conf
 
+    if not isinstance(data, fantail.Fantail):
+        print('{} has no keys'.format(args.prefix))
+        if data:
+            print("  value: {}...".format(" ".join(data.split())[:50]))
+        exit(0)
+
     for k in data.keys():
         if args.prefix:
             print('{0}.{1}'.format(args.prefix, k))
@@ -586,7 +654,7 @@ def conf_keys(app, args):
 
 @flag('-c', '--clear', help='clear configuration db first')
 @subcommand(conf, "rehash")
-def _conf_rehash(app, args):
+def conf_rehash(app, args):
     """
     Read & set configuration from the default pacakge data
     """
@@ -594,13 +662,96 @@ def _conf_rehash(app, args):
     app.conf = get_config(
         app.name,
         package_name=app.package_name,
-        config_files=app.config_files,
         rehash=True)
 
 
-@subcommand(conf, "clear")
-def _conf_clear(app, args):
+@arg("location", help='location of the configuration data')
+@arg("name", help='name')
+@subcommand(conf, "addloc")
+def _conf_addloc(app, args):
     """
-    Clear configuratino database
+    Add a location to load upon 'conf rehash'
     """
-    app.conf.clear()
+    conf_fof = get_conf_locations_fof(app.name)
+    confloc = load_conf_locations(conf_fof)
+    confloc[args.name] = args.location
+    save_conf_locations(conf_fof, confloc)
+
+
+@arg("value", help='value')
+@arg("name", help='name')
+@subcommand(conf, "set")
+def _conf_set(app, args):
+    """
+    Set a configuration value
+    """
+    curval = app.conf[args.name]
+    nval = args.value
+
+    def isint(v):
+        try:
+            int(v)
+            return True
+        except ValueError:
+            return False
+
+    def isfloat(v):
+        try:
+            float(v)
+            return True
+        except ValueError:
+            return False
+
+
+    if nval.lower() == 'true':
+        nval = True
+    elif nval.lower() == 'false':
+        nval = False
+    elif iffloat(nval):
+        nval = int(nval)
+
+    print("{} {} {}".format(args.name, curval, nval))
+
+    if curval and isinstance(curval, fantail.Fantail):
+        lg.warning("Cannot overwrite a complete branch")
+        exit(-1)
+
+
+    app.conf[args.name] = nval
+
+    localconf = get_local_config_file(app.name)
+    print(localconf)
+
+
+    # if not isinstance(data, fantail.Fantail):
+    #     if data:
+    #         print(data)
+    #     else:
+    #         print('{} has no keys/value'.format(args.prefix))
+    #     exit(0)
+
+    # for k in data.keys():
+    #     val = str(data[k])
+    #     if len(val) > 60:
+    #         val = (" ".join(val.split()))[:60] + '...'
+    #     if args.prefix:
+    #         print('{0}.{1}: {2}'.format(args.prefix, k, val))
+    #     else:
+    #         print('{0}: {1}'.format(k, val))
+
+
+
+#def save_conf_locations(conf_fof, conflocs):
+#    with open(conf_fof, 'w') as F:
+#        for name, location in conflocs.items():
+#            F.write("{}\t{}\n".format(name, location))
+
+
+# @subcommand(conf, "clear")
+# def _conf_clear(app, args):
+#     """
+#     Clear configuratino database
+#     """
+#     app.conf.clear()
+
+

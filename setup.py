@@ -12,13 +12,13 @@ if sys.version_info >= (3,):
 entry_points = {
     'console_scripts': [
         'leip = leip.cli:dispatch'
-        ]}
+    ]}
 
 setup(name='leip',
-      version='0.1.0',
+      version='0.1.1',
       description=DESCRIPTION,
       author='Mark Fiers',
-      entry_points = entry_points,
+      entry_points=entry_points,
       author_email='mark.fiers.42@gmail.com',
       url='http://mfiers.github.com/Leip',
       packages=['leip'],
@@ -36,4 +36,4 @@ setup(name='leip',
           'Programming Language :: Python :: 3.3',
       ],
       **extra
-    )
+      )
