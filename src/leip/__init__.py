@@ -33,7 +33,10 @@ else:
 CONFIG = {}
 
 
-def get_config(name, package_name=None, rehash=False):
+def get_config(name,
+               package_name=None,
+               rehash=False,
+               clear_before_rehash=True):
 
     global CONFIG
 
@@ -48,7 +51,7 @@ def get_config(name, package_name=None, rehash=False):
     if not os.path.exists(conf_dir):
         os.makedirs(conf_dir)
 
-    conf_location = os.path.join(conf_dir, '{}.config.pickle'.format(name))
+    conf_location = get_conf_pickle_location(name)
 
     db_existed = (os.path.exists(conf_location) and
                   os.path.getsize(conf_location) > 0)
@@ -67,6 +70,10 @@ def get_config(name, package_name=None, rehash=False):
         return conf
 
     # Ok - either the path did not exist - or - a rehash is required
+
+    #if a clear is requested - create a clean empty object
+    if clear_before_rehash:
+        conf = fantail.Fantail()
 
     # From where to read configuration files???
     conf_fof = os.path.join(conf_dir, 'config.locations')
@@ -92,10 +99,28 @@ def get_config(name, package_name=None, rehash=False):
     return conf
 
 
-def get_local_config_file(name):
+def get_conf_pickle_location(name):
+    conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
+    return os.path.join(conf_dir, '{}.config.pickle'.format(name))
+
+
+def get_local_config_filename(name):
     return os.path.join(
         os.path.expanduser('~'),
         '.config', name, 'config', '_local.config')
+
+
+def get_local_config_file(name):
+    fn = get_local_config_filename(name)
+    if os.path.exists(fn):
+        return fantail.yaml_file_loader(fn)
+    else:
+        return fantail.Fantail()
+
+
+def save_local_config_file(lconf, name):
+    fn = get_local_config_filename(name)
+    fantail.yaml_file_save(lconf, fn)
 
 
 def get_conf_locations_fof(name):
@@ -658,11 +683,11 @@ def conf_rehash(app, args):
     """
     Read & set configuration from the default pacakge data
     """
-    app.conf.clear()
     app.conf = get_config(
         app.name,
         package_name=app.package_name,
-        rehash=True)
+        rehash=True,
+        clear_before_rehash=args.clear)
 
 
 @arg("location", help='location of the configuration data')
@@ -702,56 +727,25 @@ def _conf_set(app, args):
         except ValueError:
             return False
 
-
     if nval.lower() == 'true':
         nval = True
     elif nval.lower() == 'false':
         nval = False
-    elif iffloat(nval):
+    elif isfloat(nval):
+        nval = float(nval)
+    elif isint(nval):
         nval = int(nval)
 
     print("{} {} {}".format(args.name, curval, nval))
 
     if curval and isinstance(curval, fantail.Fantail):
-        lg.warning("Cannot overwrite a complete branch")
+        lg.warning("Cannot overwrite a branch")
         exit(-1)
 
-
     app.conf[args.name] = nval
+    with open(get_conf_pickle_location(app.name), 'wb') as F:
+        cPickle.dump(app.conf, F)
 
     localconf = get_local_config_file(app.name)
-    print(localconf)
-
-
-    # if not isinstance(data, fantail.Fantail):
-    #     if data:
-    #         print(data)
-    #     else:
-    #         print('{} has no keys/value'.format(args.prefix))
-    #     exit(0)
-
-    # for k in data.keys():
-    #     val = str(data[k])
-    #     if len(val) > 60:
-    #         val = (" ".join(val.split()))[:60] + '...'
-    #     if args.prefix:
-    #         print('{0}.{1}: {2}'.format(args.prefix, k, val))
-    #     else:
-    #         print('{0}: {1}'.format(k, val))
-
-
-
-#def save_conf_locations(conf_fof, conflocs):
-#    with open(conf_fof, 'w') as F:
-#        for name, location in conflocs.items():
-#            F.write("{}\t{}\n".format(name, location))
-
-
-# @subcommand(conf, "clear")
-# def _conf_clear(app, args):
-#     """
-#     Clear configuratino database
-#     """
-#     app.conf.clear()
-
-
+    localconf[args.name] = nval
+    save_local_config_file(localconf, app.name)
