@@ -120,6 +120,9 @@ def get_local_config_file(name):
 
 def save_local_config_file(lconf, name):
     fn = get_local_config_filename(name)
+    fnd = os.path.dirname(fn)
+    if not os.path.exists(fnd):
+        os.makedirs(fnd)
     fantail.yaml_file_save(lconf, fn)
 
 
@@ -736,7 +739,7 @@ def _conf_set(app, args):
     elif isint(nval):
         nval = int(nval)
 
-    print("{} {} {}".format(args.name, curval, nval))
+    #print("{} {} {}".format(args.name, curval, nval))
 
     if curval and isinstance(curval, fantail.Fantail):
         lg.warning("Cannot overwrite a branch")
