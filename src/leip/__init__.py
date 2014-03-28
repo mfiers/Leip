@@ -8,12 +8,18 @@ from __future__ import print_function
 
 import argparse
 from collections import defaultdict, OrderedDict
-import cPickle
 import logging
 import importlib
 import os
 import sys
 import textwrap
+
+PY3 = sys.version_info[0] > 2
+
+if PY3:
+    import pickle
+else:
+    import cPickle as pickle
 
 import fantail
 
@@ -58,8 +64,8 @@ def get_config(name,
 
     if db_existed:
         lg.debug("opening cached configuration: %s", conf_location)
-        with open(conf_location) as F:
-            conf = cPickle.load(F)
+        with open(conf_location, 'rb') as F:
+            conf = pickle.load(F)
     else:
         conf = fantail.Fantail()
 
@@ -90,11 +96,11 @@ def get_config(name,
         save_conf_locations(conf_fof, conflocs)
 
     for name, location in conflocs.items():
-        lg.warning("loading config '{}': {}".format(name, location))
+        lg.debug("loading config '{}': {}".format(name, location))
         conf.update(fantail.load(location))
 
     with open(conf_location, 'wb') as F:
-        cPickle.dump(conf, F)
+        pickle.dump(conf, F)
 
     return conf
 
@@ -399,7 +405,11 @@ class app(object):
         # create a help text from the docstring - if possible
         _desc = [cname]
         if function.__doc__:
-            _desc = function.__doc__.strip().split("\n", 1)
+            doc = function.__doc__.strip()
+            if '---' in doc:
+                doc = doc.split('---', 1)[0].strip()
+
+            _desc = doc.split("\n", 1)
 
         if len(_desc) == 2:
             short_description, long_description = _desc
@@ -742,12 +752,12 @@ def _conf_set(app, args):
     #print("{} {} {}".format(args.name, curval, nval))
 
     if curval and isinstance(curval, fantail.Fantail):
-        lg.warning("Cannot overwrite a branch")
+        lg.info("Cannot overwrite a branch")
         exit(-1)
 
     app.conf[args.name] = nval
     with open(get_conf_pickle_location(app.name), 'wb') as F:
-        cPickle.dump(app.conf, F)
+        pickle.dump(app.conf, F)
 
     localconf = get_local_config_file(app.name)
     localconf[args.name] = nval
