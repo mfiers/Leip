@@ -661,9 +661,9 @@ def conf_show(app, args):
         if len(val) > 60:
             val = (" ".join(val.split()))[:60] + '...'
         if args.prefix:
-            print('{0}.{1}: {2}'.format(args.prefix, k, val))
+            print('{0}.{1} {2}'.format(args.prefix, k, val))
         else:
-            print('{0}: {1}'.format(k, val))
+            print('{0} {1}'.format(k, val))
 
 
 @arg("prefix", nargs='?')
