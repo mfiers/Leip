@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
@@ -9,6 +10,7 @@ from __future__ import print_function
 import argparse
 from collections import defaultdict, OrderedDict
 import logging
+import logging.config
 import importlib
 import os
 import sys
@@ -23,17 +25,39 @@ else:
 
 import fantail
 
-logformat = "%(levelname)s|%(name)s|%(module)s|%(message)s"
-logging.basicConfig(format=logformat)
+try:
+
+    from colorlog import ColoredFormatter
+    color_formatter = ColoredFormatter(
+        "%(green)s#%(name)s %(log_color)s%(levelname)-8s%(reset)s "+
+        "%(blue)s%(message)s",
+        datefmt=None,
+        reset=True,
+        log_colors={'DEBUG':    'cyan',
+                    'INFO':     'green',
+                    'WARNING':  'yellow',
+                    'ERROR':    'red',
+                    'CRITICAL': 'red'})
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.setFormatter(color_formatter)
+    logging.getLogger('').addHandler(stream_handler)
+except ImportError:
+    logformat = "%(name)s %(levelname)s|%(name)s|%(message)s"
+    logging.basicConfig(format=logformat)
+
+
 lg = logging.getLogger(__name__)
+lg.setLevel(logging.DEBUG)
 
 # hack to quickly get the verbosity set properly:
-if '-v' in sys.argv:
-    lg.setLevel(logging.DEBUG)
-elif '-q' in sys.argv:
-    lg.setLevel(logging.WARNING)
-else:
-    lg.setLevel(logging.INFO)
+# if '-v' in sys.argv:
+#     lg.setLevel(logging.DEBUG)
+# elif '-q' in sys.argv:
+#     lg.setLevel(logging.WARNING)
+# else:
+lg.setLevel(logging.INFO)
 
 # cache config files
 CONFIG = {}
@@ -42,7 +66,8 @@ CONFIG = {}
 def get_config(name,
                package_name=None,
                rehash=False,
-               clear_before_rehash=True):
+               clear_before_rehash=True
+               ):
 
     global CONFIG
 
@@ -77,7 +102,7 @@ def get_config(name,
 
     # Ok - either the path did not exist - or - a rehash is required
 
-    #if a clear is requested - create a clean empty object
+    # if a clear is requested - create a clean empty object
     if clear_before_rehash:
         conf = fantail.Fantail()
 
@@ -160,7 +185,8 @@ class app(object):
                  package_name=None,
                  config_files=None,
                  set_name='conf',
-                 rehash_name='rehash'):
+                 rehash_name='rehash',
+                 disable_commands=False):
         """
 
         :param name: base name of the applications
@@ -173,6 +199,9 @@ class app(object):
         :param set_name: name of the command to set new values,
            if set to None, no set function is available. Default='set'
         :type set_name: string
+        :param disable_commands: Disable all command/subcommand &
+           argparse related functionality - leaving the user with
+           a configurable, hookable & pluginable core app.
 
         """
         lg.debug("Starting Leip app")
@@ -191,19 +220,21 @@ class app(object):
         self.leip_commands = {}
         self.leip_subparsers = {}
         self.plugins = {}
+        self.disable_commands = disable_commands
 
         self.hooks = defaultdict(list)
 
-        self.parser = argparse.ArgumentParser()
+        if not disable_commands:
+            self.parser = argparse.ArgumentParser()
 
-        self.parser.add_argument('-v', '--verbose', action='store_true')
-        self.parser.add_argument('-q', '--quiet', action='store_true')
-        self.parser.add_argument('--profile', action='store_true',
-                                 help=argparse.SUPPRESS)
+            self.parser.add_argument('-v', '--verbose', action='store_true')
+            self.parser.add_argument('-q', '--quiet', action='store_true')
+            self.parser.add_argument('--profile', action='store_true',
+                                     help=argparse.SUPPRESS)
 
-        self.subparser = self.parser.add_subparsers(
-            title='command', dest='command',
-            help='"{}" command to execute'.format(name))
+            self.subparser = self.parser.add_subparsers(
+                title='command', dest='command',
+                help='"{}" command to execute'.format(name))
 
         # contains transient data - execution specific
         self.trans = fantail.Fantail()
@@ -211,7 +242,16 @@ class app(object):
         # contains configuration data
         self.conf = get_config(self.name,
                                package_name=self.package_name)
-#                               config_files=self.config_files)
+
+        # now that we have configuration info - see if there is
+        # a logging branch that we can feed to the logging module
+
+        try:
+            if 'logging' in self.conf:
+                logging.config.dictConfig(self.conf['logging'])
+        except Exception as e:
+            lg.warning("unable to load logging configuration")
+            lg.warning(str(e))
 
         # check for and load plugins
         plugins = self.conf['plugin']
@@ -274,8 +314,6 @@ class app(object):
                 lg.debug("run function: {}".format(func))
                 func(self, self.trans['args'])
 
-        self.register_hook('run', 50, _run_command)
-
         # register parse arguments as a hook
         def _prep_args(app):
             args = self.parser.parse_args()
@@ -285,13 +323,13 @@ class app(object):
                 rootlogger.setLevel(logging.DEBUG)
             elif self.trans['args'].quiet:
                 rootlogger.setLevel(logging.WARNING)
-            else:
-                rootlogger.setLevel(logging.INFO)
-
-        self.register_hook('prepare', 50, _prep_args)
 
         # hook run order
         self.hook_order = ['prepare', 'run', 'finish']
+
+        if not disable_commands:
+            self.register_hook('run', 50, _run_command)
+            self.register_hook('prepare', 50, _prep_args)
 
         # discover locally
         self.discover(globals())
@@ -353,10 +391,11 @@ class app(object):
             if isinstance(obj, fantail.Fantail):
                 continue
 
-            # see if this is a function decorated as hook
+            # if this is not a function - ignore
             if not hasattr(obj, '__call__'):
                 continue
 
+            # see if this is a hook
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
                 if isinstance(hook, fantail.Fantail):
@@ -367,13 +406,17 @@ class app(object):
                 self.hooks[hook].append(
                     (prio, obj))
 
-            if hasattr(obj, '_leip_subcommand'):
-                subcommands.append(obj)
-            elif hasattr(obj, '_leip_command'):
-                self.register_command(obj)
+            # see if this may be a command
+            if not self.disable_commands:
+                if hasattr(obj, '_leip_subcommand'):
+                    subcommands.append(obj)
+                elif hasattr(obj, '_leip_command'):
+                    self.register_command(obj)
 
-        for subcommand in subcommands:
-            self.register_command(subcommand)
+        # register subcommands
+        if not self.disable_commands:
+            for subcommand in subcommands:
+                self.register_command(subcommand)
 
     def register_command(self, function):
 
@@ -457,6 +500,7 @@ class app(object):
         lg.debug("running hook %s" % name)
 
         for priority, func in to_run:
+            #print(priority, func)
             lg.debug("running hook %s" % func)
             func(self, *args, **kw)
 
