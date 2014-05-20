@@ -130,6 +130,16 @@ def get_config(name,
     return conf
 
 
+def set_local_config(app, key, value):
+    app.conf[key] = value
+    with open(get_conf_pickle_location(app.name), 'wb') as F:
+        pickle.dump(app.conf, F)
+
+    localconf = get_local_config_file(app.name)
+    localconf[key] = value
+    save_local_config_file(localconf, app.name)
+
+
 def get_conf_pickle_location(name):
     conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
     return os.path.join(conf_dir, '{}.config.pickle'.format(name))
