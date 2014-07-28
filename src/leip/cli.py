@@ -39,7 +39,7 @@ def hello_world(app, args):
 CONF_TEMPLATE = """message: Kia ora
 """
 
-PLUGIN_CONF_TEMPLATE = """{name}:
+PLUGIN_CONF_TEMPLATE = """hello_world:
   module: {name}.plugin.hello_world
   enabled: true
 """
