@@ -270,10 +270,10 @@ class app(object):
             plugin = plugins[plugin_name]
 
             lg.debug("loading plugin %s" % plugin_name)
-
             module_name = plugin.get('module')
             if not module_name:
-                continue
+                module_name = '{}.plugin.{}'.format(self.name, plugin_name)
+                lg.debug("guessing module name: %s", module_name)
 
             enabled = plugin.get('enabled', True)
             if not enabled:
@@ -281,7 +281,12 @@ class app(object):
 
             lg.debug("attempting to load plugin from module {0}".format(
                 module_name))
-            mod = importlib.import_module(module_name)
+            try:
+                mod = importlib.import_module(module_name)
+            except ImportError:
+                lg.error('Cannot import %s module "%s" (%s)',
+                         self.name, plugin_name, module_name)
+                continue
 
             self.plugins[plugin_name] = mod
             self.discover(mod)
