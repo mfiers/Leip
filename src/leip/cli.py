@@ -22,27 +22,35 @@ def dispatch():
     """
     app.run()
 
-@leip.arg('name', help='say hello to')
+
+app = leip.app(name='{name}')
+app.discover(globals())
+'''
+
+HELLO_WORLD_PLUGIN_TEMPLATE = '''
+import leip
+
+@leip.arg('name', help='Say hello to')
 @leip.command
 def hello_world(app, args):
     print "{{}} {{}}".format(app.conf['message'], args.name)
-
-
-app = leip.app(name='{name}', set_name=None)
-app.discover(globals())
-
 '''
 
 CONF_TEMPLATE = """message: Kia ora
 """
 
+PLUGIN_CONF_TEMPLATE = """{name}:
+  module: {name}.plugin.hello_world
+  enabled: true
+"""
+
 README_TEMPLATE = """
-The most magnificent {project} project
-=======================================
+The great '{project}' project
+=============================
 
 Author: {author} <{email}>
 
-Documentation follows surely!
+Documentation follows (or so I hope).
 """
 
 SETUP_PY_TEMPLATE = """#!/usr/bin/env python
@@ -86,6 +94,11 @@ setup(name='{name}',
 """
 
 def create_file(pth, content):
+    bn = os.path.dirname(pth)
+    print(bn)
+    if not os.path.exists(bn):
+        print(bn)
+        os.makedirs(bn)
     if not os.path.exists(pth):
         with open(pth, 'w') as F:
             F.write(content)
@@ -121,11 +134,20 @@ def create(app, args):
     conf = os.path.join(src, 'etc', '_{}.config'.format(name))
     create_file(conf, CONF_TEMPLATE)
 
+    p_conf = os.path.join(src, 'etc', 'plugin.config'.format(name))
+    create_file(p_conf, PLUGIN_CONF_TEMPLATE.format(**tdata))
+
     setup_py = os.path.join(project, 'setup.py')
     create_file(setup_py, SETUP_PY_TEMPLATE.format(**tdata))
 
     cli_py = os.path.join(src, 'cli.py')
     create_file(cli_py, CLI_TEMPLATE.format(**tdata))
+
+    hw_py = os.path.join(src, 'plugin', 'hello_world.py')
+    create_file(hw_py, HELLO_WORLD_PLUGIN_TEMPLATE.format(**tdata))
+
+    hwi_py = os.path.join(src, 'plugin', '__init__.py')
+    create_file(hwi_py, "")
 
     create_file(os.path.join(project, 'MANIFEST.in'),
         "recursive-include {name}/etc *.config\n".format(**tdata))
