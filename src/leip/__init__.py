@@ -512,7 +512,7 @@ class app(object):
         Execute hook
         """
         to_run = sorted(self.hooks[name])
-        lg.debug("running hook %s" % name)
+        lg.debug("starting hook %s" % name)
 
         for priority, func in to_run:
             #print(priority, func)
@@ -521,7 +521,7 @@ class app(object):
 
     def run(self):
         for hook in self.hook_order:
-            lg.debug("running hook {}".format(hook))
+            lg.debug("running hook {}/{}".format(self.name, hook))
             self.run_hook(hook)
 
 
