@@ -51,6 +51,14 @@ except ImportError:
 lg = logging.getLogger(__name__)
 lg.setLevel(logging.DEBUG)
 
+
+#thanks: http://tinyurl.com/mznq746
+class ArgumentParserError(Exception): pass
+class ThrowingArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ArgumentParserError(message)
+
+
 # hack to quickly get the verbosity set properly:
 # if '-v' in sys.argv:
 #     lg.setLevel(logging.DEBUG)
@@ -131,6 +139,7 @@ def get_config(name,
 
 
 def set_local_config(app, key, value):
+
     app.conf[key] = value
     with open(get_conf_pickle_location(app.name), 'wb') as F:
         pickle.dump(app.conf, F)
@@ -150,7 +159,16 @@ def get_local_config_filename(name):
         os.path.expanduser('~'),
         '.config', name, 'config', '_local.config')
 
+def get_cache_dir(name):
+    cd = os.path.join(
+            os.path.expanduser('~'),
+            '.cache', name)
+    if not os.path.exists(cd):
+        os.makedirs(cd)
+    return cd
 
+
+                        )
 def get_local_config_file(name):
     fn = get_local_config_filename(name)
     if os.path.exists(fn):
@@ -227,6 +245,8 @@ class app(object):
 
         self.config_files = config_files
 
+        self.leip_on_parse_error = None
+
         self.leip_commands = {}
         self.leip_subparsers = {}
         self.plugins = {}
@@ -235,7 +255,7 @@ class app(object):
         self.hooks = defaultdict(list)
 
         if not disable_commands:
-            self.parser = argparse.ArgumentParser()
+            self.parser = ThrowingArgumentParser()
 
             self.parser.add_argument('-v', '--verbose', action='store_true')
             self.parser.add_argument('-q', '--quiet', action='store_true')
@@ -283,9 +303,10 @@ class app(object):
                 module_name))
             try:
                 mod = importlib.import_module(module_name)
-            except ImportError:
+            except ImportError as e:
                 lg.error('Cannot import %s module "%s" (%s)',
                          self.name, plugin_name, module_name)
+                lg.error('%s', e)
                 continue
 
             self.plugins[plugin_name] = mod
@@ -331,7 +352,25 @@ class app(object):
 
         # register parse arguments as a hook
         def _prep_args(app):
-            args = self.parser.parse_args()
+            try:
+                args = self.parser.parse_args()
+            except ArgumentParserError as e:
+                #invalid call - see if there is an overriding function
+                #to capture invalid calls
+                if app.leip_on_parse_error is None:
+                    super(ThrowingArgumentParser,
+                          self.parser).error(e.message)
+                else:
+                    lg.debug("parse error: %s", e.message)
+                    rv = app.leip_on_parse_error(app, e)
+
+                    #if the on_parse_error function returns a non-zero
+                    #number the error is raised after all
+                    if rv != 0:
+                        super(ThrowingArgumentParser,
+                              self.parser).error(e.message)
+                    exit(0)
+            #     raise
             self.trans['args'] = args
             rootlogger = logging.getLogger()
             if self.trans['args'].verbose:
@@ -377,6 +416,7 @@ class app(object):
         """
 
         leip_init_hook = None
+
         for obj_name in mod_objects:
             obj = mod_objects[obj_name]
 
@@ -410,7 +450,12 @@ class app(object):
             if not hasattr(obj, '__call__'):
                 continue
 
+
             # see if this is a hook
+            if hasattr(obj, '__call__') and \
+                    hasattr(obj, '_leip_parse_error_hook'):
+                self.leip_on_parse_error = obj
+
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
                 if isinstance(hook, fantail.Fantail):
@@ -623,6 +668,15 @@ def init(f):
     Only one per module is expected.
     """
     f._leip_init_hook = f.__name__
+    return f
+
+def on_parse_error(f):
+    """
+    Execute this function on a parse_error
+
+    Only one per applications is expected.
+    """
+    f._leip_parse_error_hook = f.__name__
     return f
 
 
