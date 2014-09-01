@@ -159,16 +159,18 @@ def get_local_config_filename(name):
         os.path.expanduser('~'),
         '.config', name, 'config', '_local.config')
 
-def get_cache_dir(name):
+def get_cache_dir(name, *args):
+
     cd = os.path.join(
             os.path.expanduser('~'),
             '.cache', name)
+    if args:
+        cd = os.path.join(cd, *args)
+
     if not os.path.exists(cd):
         os.makedirs(cd)
     return cd
 
-
-                        )
 def get_local_config_file(name):
     fn = get_local_config_filename(name)
     if os.path.exists(fn):
@@ -387,6 +389,12 @@ class app(object):
 
         # discover locally
         self.discover(globals())
+
+    def cache_dir(self, group=None):
+        """
+        Return a (created) cache directory for this app
+        """
+        return get_cache_dir(self.name, group)
 
     def discover(self, mod):
         """
