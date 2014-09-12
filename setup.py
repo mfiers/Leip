@@ -15,7 +15,7 @@ entry_points = {
     ]}
 
 setup(name='leip',
-      version='0.1.7',
+      version='0.1.8',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points=entry_points,
