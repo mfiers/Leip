@@ -4,4 +4,4 @@ Leip.egg-info
 *#
 *~
 build
-dist
+dist*.egg-info
