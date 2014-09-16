@@ -49,7 +49,7 @@ except ImportError:
 
 
 lg = logging.getLogger(__name__)
-lg.setLevel(logging.DEBUG)
+lg.setLevel(logging.WARNING)
 
 
 #thanks: http://tinyurl.com/mznq746
@@ -59,12 +59,6 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
         raise ArgumentParserError(message)
 
 
-# hack to quickly get the verbosity set properly:
-# if '-v' in sys.argv:
-#     lg.setLevel(logging.DEBUG)
-# elif '-q' in sys.argv:
-#     lg.setLevel(logging.WARNING)
-# else:
 lg.setLevel(logging.INFO)
 
 # cache config files
@@ -259,8 +253,10 @@ class app(object):
         if not disable_commands:
             self.parser = ThrowingArgumentParser()
 
-            self.parser.add_argument('-v', '--verbose', action='store_true')
-            self.parser.add_argument('-q', '--quiet', action='store_true')
+            self.parser.add_argument('-v', '--verbose', action='count',
+                                     default=0, help='be verbose '
+                                     '(-vv for even more)')
+            #self.parser.add_argument('-q', '--quiet', action='store_true')
             self.parser.add_argument('--profile', action='store_true',
                                      help=argparse.SUPPRESS)
 
@@ -375,10 +371,10 @@ class app(object):
             #     raise
             self.trans['args'] = args
             rootlogger = logging.getLogger()
-            if self.trans['args'].verbose:
+            if self.trans['args'].verbose > 1:
                 rootlogger.setLevel(logging.DEBUG)
-            elif self.trans['args'].quiet:
-                rootlogger.setLevel(logging.WARNING)
+            elif self.trans['args'].verbose > 0:
+                rootlogger.setLevel(logging.INFO)
 
         # hook run order
         self.hook_order = ['prepare', 'run', 'finish']
