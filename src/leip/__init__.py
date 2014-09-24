@@ -48,6 +48,7 @@ except ImportError:
     logging.basicConfig(format=logformat)
 
 
+
 lg = logging.getLogger(__name__)
 lg.setLevel(logging.WARNING)
 
@@ -356,8 +357,9 @@ class app(object):
                 #invalid call - see if there is an overriding function
                 #to capture invalid calls
                 if app.leip_on_parse_error is None:
+                    message = getattr(e, 'message', '')
                     super(ThrowingArgumentParser,
-                          self.parser).error(e.message)
+                          self.parser).error(message)
                 else:
                     lg.debug("parse error: %s", e.message)
                     rv = app.leip_on_parse_error(app, e)
