@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
@@ -238,11 +237,12 @@ class app(object):
 
         if name is None:
             name = os.path.basename(sys.argv[0])
-
+            
         if package_name is None:
             package_name = name
 
         self.name = name
+        self.set_name = set_name
         self.package_name = package_name
 
         self.config_files = config_files
@@ -496,15 +496,25 @@ class app(object):
         if subcommand_name:
             is_subcommand = True
             parent = function._leip_parent
+            if hasattr(parent, '_leip_is_conf_subparser'):
+                parent._leip_command = self.set_name
 
         is_subparser = False
+        is_conf_subparser = False
         if hasattr(function, '_leip_is_subparser') and \
                 function._leip_is_subparser:
             is_subparser = True
 
+            if hasattr(function, '_leip_is_conf_subparser'):
+                is_conf_subparser = True
+                cname = self.set_name
+#                function._leip_command = self.set_name
+#                subcommand_name = self.set_name
+
+
         lg.debug("command %s subp %s subc %s",
                  cname, is_subparser, is_subcommand)
-
+    
         if hasattr(function, '_leip_usage'):
             usage = function._leip_usage
         else:
@@ -721,6 +731,8 @@ def conf(app, args):
     Manage configuration
     """
     pass  # this function is never called - it's just a placeholder
+
+conf._leip_is_conf_subparser = True
 
 
 @arg('value', help="value to set it to")
