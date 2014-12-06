@@ -215,6 +215,7 @@ class app(object):
                  config_files=None,
                  set_name='conf',
                  rehash_name='rehash',
+                 delay_load_plugins=False,
                  disable_commands=False):
         """
 
@@ -285,6 +286,11 @@ class app(object):
             lg.warning("unable to load logging configuration")
             lg.warning(str(e))
 
+        if not delay_load_plugins:
+            self.load_plugins()
+
+            
+    def load_plugins(self):
         # check for and load plugins
         plugins = self.conf['plugin']
         for plugin_name in plugins:
@@ -363,12 +369,16 @@ class app(object):
                     super(ThrowingArgumentParser,
                           self.parser).error(e.message)
                 else:
-                    lg.debug("parse error: %s", e.message)
+                    if hasattr(e, 'message'):
+                        lg.debug("parse error: %s", e.message)
+                    else:
+                        lg.debug("parse error")
                     rv = app.leip_on_parse_error(app, e)
 
                     #if the on_parse_error function returns a non-zero
                     #number the error is raised after all
                     if rv != 0:
+                        
                         super(ThrowingArgumentParser,
                               self.parser).error(e.message)
                     exit(0)
@@ -383,7 +393,7 @@ class app(object):
         # hook run order
         self.hook_order = ['prepare', 'run', 'finish']
 
-        if not disable_commands:
+        if not self.disable_commands:
             self.register_hook('run', 50, _run_command)
             self.register_hook('prepare', 50, _prep_args)
 
