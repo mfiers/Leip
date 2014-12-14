@@ -25,11 +25,21 @@ else:
 
 import fantail
 
-try:
 
+class LeipFilter(logging.Filter):
+    def filter(self, record):
+        record.basename = record.name.split('.')[0]
+        record.shortlevel = dict(DEBUG = 'DBG ',
+                                 INFO = '',
+                                 WARNING = 'WRN ',
+                                 ERROR = 'ERR ',
+                                 CRITICAL = 'CRT ')[record.levelname]
+        return True
+
+try:
     from colorlog import ColoredFormatter
     color_formatter = ColoredFormatter(
-        "%(green)s#%(name)s %(log_color)s%(levelname)-8s%(reset)s "+
+        "%(green)s#%(basename)s %(log_color) s%(shortlevel)s%(reset)s"+
         "%(blue)s%(message)s",
         datefmt=None,
         reset=True,
@@ -42,13 +52,18 @@ try:
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.DEBUG)
     stream_handler.setFormatter(color_formatter)
+    stream_handler.addFilter(LeipFilter())
     logging.getLogger('').addHandler(stream_handler)
+    
 except ImportError:
-    logformat = "%(name)s %(levelname)s|%(name)s|%(message)s"
+    logformat = "%(basename)s %(shortlevel)s %(message)s"
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.addFilter(LeipFilter())
+    logging.getLogger('').addHandler(stream_handler)
     logging.basicConfig(format=logformat)
 
-
-
+    
 lg = logging.getLogger(__name__)
 lg.setLevel(logging.WARNING)
 
@@ -229,6 +244,7 @@ class app(object):
            a configurable, hookable & pluginable core app.
 
         """
+
         lg.debug("Starting Leip app")
 
         if name is None:
