@@ -3,7 +3,7 @@
 import sys
 from setuptools import setup
 
-DESCRIPTION = "Ultralightweight python CLI framework"
+DESCRIPTION = "Fairly lightweight python CLI framework"
 
 extra = {}
 if sys.version_info >= (3,):
@@ -15,7 +15,7 @@ entry_points = {
     ]}
 
 setup(name='leip',
-      version='0.1.7',
+      version='0.1.12',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points=entry_points,
