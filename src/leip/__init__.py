@@ -81,7 +81,7 @@ def get_config(name,
     if package_name is None:
         package_name = name
 
-    if not rehash and CONFIG.has_key(name):
+    if not rehash and name in CONFIG:
         return CONFIG[name]
 
     conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
@@ -97,7 +97,14 @@ def get_config(name,
     if db_existed:
         lg.debug("opening cached configuration: %s", conf_location)
         with open(conf_location, 'rb') as F:
-            conf = pickle.load(F)
+            try:
+                conf = pickle.load(F)
+            except ValueError as e:
+                if 'unsupported pickle protocol' in e.message:
+                    conf = fantail.Fantail()
+                    db_existed=False
+                else:
+                    raise
     else:
         conf = fantail.Fantail()
 
@@ -256,7 +263,8 @@ class app(object):
         self.disable_commands = disable_commands
 
         self.hooks = defaultdict(list)
-
+        self.hookstore = {}
+        
         if not disable_commands:
             self.parser = ThrowingArgumentParser()
 
@@ -365,24 +373,21 @@ class app(object):
             except ArgumentParserError as e:
                 #invalid call - see if there is an overriding function
                 #to capture invalid calls
+                message = str(e)
                 if app.leip_on_parse_error is None:
                     super(ThrowingArgumentParser,
-                          self.parser).error(e.message)
+                          self.parser).error(message)
                 else:
-                    if hasattr(e, 'message'):
-                        lg.debug("parse error: %s", e.message)
-                    else:
-                        lg.debug("parse error")
+                    lg.debug("parse error: %s", message)
                     rv = app.leip_on_parse_error(app, e)
 
                     #if the on_parse_error function returns a non-zero
                     #number the error is raised after all
                     if rv != 0:
-                        
                         super(ThrowingArgumentParser,
-                              self.parser).error(e.message)
+                              self.parser).error(message)
                     exit(0)
-            #     raise
+
             self.trans['args'] = args
             rootlogger = logging.getLogger()
             if self.trans['args'].verbose:
@@ -481,8 +486,10 @@ class app(object):
                 prio = obj.__dict__.get('_leip_hook_priority', 100)
                 lg.debug("discovered hook %s (%d) in %s" % (
                     hook, prio, obj.__name__))
+                hookname = obj.__name__
                 self.hooks[hook].append(
-                    (prio, obj))
+                    (prio, hookname))
+                self.hookstore[(hook, hookname)] = obj
 
             # see if this may be a command
             if not self.disable_commands:
@@ -577,8 +584,10 @@ class app(object):
 
     def register_hook(self, name, priority, function):
         lg.debug("registering hook {0} / {1}".format(name, function))
+        hookname = function.__name__
+        self.hookstore[(name, hookname)] = function
         self.hooks[name].append(
-            (priority, function))
+            (priority, hookname))
 
     def run_hook(self, name, *args, **kw):
         """
@@ -587,9 +596,11 @@ class app(object):
         to_run = sorted(self.hooks[name])
         lg.debug("starting hook %s" % name)
 
-        for priority, func in to_run:
+        for priority, hookname in to_run:
             #print(priority, func)
-            lg.debug("running hook %s" % func)
+            lg.debug("running hook %s" % hookname)
+            func = self.hookstore[(name, hookname)]
+            
             func(self, *args, **kw)
 
     def run(self):
