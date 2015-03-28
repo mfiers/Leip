@@ -5,17 +5,13 @@ from setuptools import setup
 
 DESCRIPTION = "Ultralightweight python CLI framework"
 
-extra = {}
-if sys.version_info >= (3,):
-    extra['use_2to3'] = True
-
 entry_points = {
     'console_scripts': [
         'leip = leip.cli:dispatch'
     ]}
 
 setup(name='leip',
-      version='0.1.7',
+      version='0.2.0',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points=entry_points,
@@ -32,8 +28,10 @@ setup(name='leip',
           'Environment :: Console',
           'Intended Audience :: Developers',
           'Operating System :: OS Independent',
+          'Programming Language :: Python :: 2',
           'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.3',
-      ],
-      **extra
+          'Programming Language :: Python :: 3.4',
+      ]
       )
