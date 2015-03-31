@@ -245,7 +245,7 @@ class app(object):
 
         if name is None:
             name = os.path.basename(sys.argv[0])
-            
+
         if package_name is None:
             package_name = name
 
@@ -264,7 +264,7 @@ class app(object):
 
         self.hooks = defaultdict(list)
         self.hookstore = {}
-        
+
         if not disable_commands:
             self.parser = ThrowingArgumentParser()
 
@@ -297,7 +297,7 @@ class app(object):
         if not delay_load_plugins:
             self.load_plugins()
 
-            
+
     def load_plugins(self):
         # check for and load plugins
         plugins = self.conf['plugin']
@@ -486,7 +486,8 @@ class app(object):
                 prio = obj.__dict__.get('_leip_hook_priority', 100)
                 lg.debug("discovered hook %s (%d) in %s" % (
                     hook, prio, obj.__name__))
-                hookname = obj.__name__
+
+                hookname = obj.__name__ + str(obj.__hash__())
                 self.hooks[hook].append(
                     (prio, hookname))
                 self.hookstore[(hook, hookname)] = obj
@@ -531,7 +532,7 @@ class app(object):
 
         lg.debug("command %s subp %s subc %s",
                  cname, is_subparser, is_subcommand)
-    
+
         if hasattr(function, '_leip_usage'):
             usage = function._leip_usage
         else:
@@ -584,7 +585,8 @@ class app(object):
 
     def register_hook(self, name, priority, function):
         lg.debug("registering hook {0} / {1}".format(name, function))
-        hookname = function.__name__
+        print(dir(function))
+        hookname = function.__name__ + str(function.__hash__())
         self.hookstore[(name, hookname)] = function
         self.hooks[name].append(
             (priority, hookname))
@@ -593,20 +595,24 @@ class app(object):
         """
         Execute hook
         """
-        to_run = sorted(self.hooks[name])
+        to_run = self.hooks[name]
+        #deduplicate to_run list - just in case
+        to_run = sorted(list(set(to_run)))
+#        print(to_run)
         lg.debug("starting hook %s" % name)
 
         for priority, hookname in to_run:
             #print(priority, func)
             lg.debug("running hook %s" % hookname)
             func = self.hookstore[(name, hookname)]
-            
+
             func(self, *args, **kw)
 
     def run(self):
         for hook in self.hook_order:
             lg.debug("running hook {}/{}".format(self.name, hook))
             self.run_hook(hook)
+
 
 
 #
