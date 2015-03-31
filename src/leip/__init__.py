@@ -220,6 +220,7 @@ class app(object):
                  name=None,
                  package_name=None,
                  config_files=None,
+                 partial_parse=False,
                  set_name='conf',
                  rehash_name='rehash',
                  delay_load_plugins=False,
@@ -252,6 +253,7 @@ class app(object):
         self.name = name
         self.set_name = set_name
         self.package_name = package_name
+        self.partial_parse = partial_parse
 
         self.config_files = config_files
 
@@ -368,25 +370,31 @@ class app(object):
 
         # register parse arguments as a hook
         def _prep_args(app):
-            try:
-                args = self.parser.parse_args()
-            except ArgumentParserError as e:
-                #invalid call - see if there is an overriding function
-                #to capture invalid calls
-                message = str(e)
-                if app.leip_on_parse_error is None:
-                    super(ThrowingArgumentParser,
-                          self.parser).error(message)
-                else:
-                    lg.debug("parse error: %s", message)
-                    rv = app.leip_on_parse_error(app, e)
 
-                    #if the on_parse_error function returns a non-zero
-                    #number the error is raised after all
-                    if rv != 0:
+            if app.partial_parse:
+                args, unknown_args = self.parser.parse_known_args()
+                self.trans['unknown_args'] = unknown_args
+            else:
+                try:
+
+                    args = self.parser.parse_args()
+                except ArgumentParserError as e:
+                    #invalid call - see if there is an overriding function
+                    #to capture invalid calls
+                    if app.leip_on_parse_error is None:
+                        message = getattr(e, 'message', '')
                         super(ThrowingArgumentParser,
                               self.parser).error(message)
-                    exit(0)
+                    else:
+                        lg.debug("parse error: %s", e.message)
+                        rv = app.leip_on_parse_error(app, e)
+
+                        #if the on_parse_error function returns a non-zero
+                        #number the error is raised after all
+                        if rv != 0:
+                            super(ThrowingArgumentParser,
+                                  self.parser).error(e.message)
+                        exit(0)
 
             self.trans['args'] = args
             rootlogger = logging.getLogger()
