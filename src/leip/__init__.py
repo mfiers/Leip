@@ -593,7 +593,6 @@ class app(object):
 
     def register_hook(self, name, priority, function):
         lg.debug("registering hook {0} / {1}".format(name, function))
-        print(dir(function))
         hookname = function.__name__ + str(function.__hash__())
         self.hookstore[(name, hookname)] = function
         self.hooks[name].append(
