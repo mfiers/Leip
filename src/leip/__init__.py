@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
@@ -92,7 +91,7 @@ def get_config(name,
     if package_name is None:
         package_name = name
 
-    if not rehash and CONFIG.has_key(name):
+    if not rehash and name in CONFIG:
         return CONFIG[name]
 
     conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
@@ -227,6 +226,7 @@ class app(object):
                  partial_parse=False,
                  set_name='conf',
                  rehash_name='rehash',
+                 delay_load_plugins=False,
                  disable_commands=False):
         """
 
@@ -250,11 +250,12 @@ class app(object):
 
         if name is None:
             name = os.path.basename(sys.argv[0])
-
+            
         if package_name is None:
             package_name = name
 
         self.name = name
+        self.set_name = set_name
         self.package_name = package_name
         self.partial_parse = partial_parse
 
@@ -300,6 +301,11 @@ class app(object):
             lg.warning("unable to load logging configuration")
             lg.warning(str(e))
 
+        if not delay_load_plugins:
+            self.load_plugins()
+
+            
+    def load_plugins(self):
         # check for and load plugins
         plugins = self.conf['plugin']
         for plugin_name in plugins:
@@ -369,6 +375,7 @@ class app(object):
 
         # register parse arguments as a hook
         def _prep_args(app):
+                        
             if app.partial_parse:
                 args, unknown_args = self.parser.parse_known_args()
                 self.trans['unknown_args'] = unknown_args
@@ -381,6 +388,7 @@ class app(object):
                     #to capture invalid calls
                     if app.leip_on_parse_error is None:
                         message = getattr(e, 'message', '')
+
                         super(ThrowingArgumentParser,
                               self.parser).error(message)
                     else:
@@ -404,7 +412,7 @@ class app(object):
         # hook run order
         self.hook_order = ['prepare', 'run', 'finish']
 
-        if not disable_commands:
+        if not self.disable_commands:
             self.register_hook('run', 50, _run_command)
             self.register_hook('prepare', 50, _prep_args)
 
@@ -517,15 +525,25 @@ class app(object):
         if subcommand_name:
             is_subcommand = True
             parent = function._leip_parent
+            if hasattr(parent, '_leip_is_conf_subparser'):
+                parent._leip_command = self.set_name
 
         is_subparser = False
+        is_conf_subparser = False
         if hasattr(function, '_leip_is_subparser') and \
                 function._leip_is_subparser:
             is_subparser = True
 
+            if hasattr(function, '_leip_is_conf_subparser'):
+                is_conf_subparser = True
+                cname = self.set_name
+#                function._leip_command = self.set_name
+#                subcommand_name = self.set_name
+
+
         lg.debug("command %s subp %s subc %s",
                  cname, is_subparser, is_subcommand)
-
+    
         if hasattr(function, '_leip_usage'):
             usage = function._leip_usage
         else:
@@ -742,6 +760,8 @@ def conf(app, args):
     Manage configuration
     """
     pass  # this function is never called - it's just a placeholder
+
+conf._leip_is_conf_subparser = True
 
 
 @arg('value', help="value to set it to")
