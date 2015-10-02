@@ -11,7 +11,7 @@ entry_points = {
     ]}
 
 setup(name='leip',
-      version='0.2.0',
+      version='0.3.0',
       description=DESCRIPTION,
       author='Mark Fiers',
       entry_points=entry_points,
@@ -28,8 +28,6 @@ setup(name='leip',
           'Environment :: Console',
           'Intended Audience :: Developers',
           'Operating System :: OS Independent',
-          'Programming Language :: Python :: 2',
-          'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.3',
           'Programming Language :: Python :: 3.4',
