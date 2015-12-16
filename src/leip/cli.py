@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function,  unicode_literals
 
-import logging
 import os
-import sys
-
 import leip
+
 
 def dispatch():
     """
@@ -23,7 +20,7 @@ def dispatch():
     app.run()
 
 
-app = leip.app(name='{name}')
+app = leip.app(name='{srcname}')
 app.discover(globals())
 '''
 
@@ -33,14 +30,14 @@ import leip
 @leip.arg('name', help='Say hello to')
 @leip.command
 def hello_world(app, args):
-    print "{{}} {{}}".format(app.conf['message'], args.name)
+    print("{{}} {{}}".format(app.conf['message'], args.name))
 '''
 
 CONF_TEMPLATE = """message: Kia ora
 """
 
 PLUGIN_CONF_TEMPLATE = """hello_world:
-  module: {name}.plugin.hello_world
+  module: {srcname}.plugin.hello_world
   enabled: true
 """
 
@@ -67,10 +64,10 @@ with open('VERSION') as F:
 
 entry_points = {{
     'console_scripts': [
-        '{name} = {name}.cli:dispatch'
+        '{srcname} = {srcname}.cli:dispatch'
         ]}}
 
-setup(name='{name}',
+setup(name='{srcname}',
       version=version,
       description=description,
       author='{author}',
@@ -93,6 +90,7 @@ setup(name='{name}',
      )
 """
 
+
 def create_file(pth, content):
     bn = os.path.dirname(pth)
     print(bn)
@@ -103,6 +101,7 @@ def create_file(pth, content):
         with open(pth, 'w') as F:
             F.write(content)
 
+            
 @leip.arg('email', help='author email')
 @leip.arg('author', help='author name')
 @leip.arg('name', help='project name')
@@ -116,7 +115,8 @@ def create(app, args):
     name = args.name
     project = name.capitalize()
     tdata['project'] = project
-
+    tdata['srcname'] = name.lower()
+    
     src = os.path.join(project, name.lower())
     if not os.path.exists(src):
         os.makedirs(src)
