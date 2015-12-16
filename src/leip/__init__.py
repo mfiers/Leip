@@ -12,20 +12,13 @@ import logging
 import logging.config
 import importlib
 import os
+import pickle
 import sys
 import textwrap
-
-PY3 = sys.version_info[0] > 2
-
-if PY3:
-    import pickle
-else:
-    import cPickle as pickle
 
 import fantail
 
 try:
-
     from colorlog import ColoredFormatter
     color_formatter = ColoredFormatter(
         "%(green)s#%(name)s %(log_color)s%(levelname)-8s%(reset)s "+
@@ -51,8 +44,11 @@ lg = logging.getLogger(__name__)
 lg.setLevel(logging.DEBUG)
 
 
-#thanks: http://tinyurl.com/mznq746
-class ArgumentParserError(Exception): pass
+# thanks: http://tinyurl.com/mznq746
+class ArgumentParserError(Exception):
+    pass
+
+
 class ThrowingArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         raise ArgumentParserError(message)
@@ -136,7 +132,8 @@ def get_config(name,
 
     for name, location in conflocs.items():
         lg.debug("loading config '{}': {}".format(name, location))
-        conf.update(fantail.load(location))
+        rv = fantail.load(location)
+        conf.update(rv)
 
     with open(conf_location, 'wb') as F:
         pickle.dump(conf, F)
@@ -177,6 +174,7 @@ def get_cache_dir(name, *args):
         os.makedirs(cd)
     return cd
 
+
 def get_local_config_file(name):
     fn = get_local_config_filename(name)
     if os.path.exists(fn):
@@ -187,6 +185,7 @@ def get_local_config_file(name):
 
 def save_local_config_file(lconf, name):
     fn = get_local_config_filename(name)
+#    print(fn)
     fnd = os.path.dirname(fn)
     if not os.path.exists(fnd):
         os.makedirs(fnd)
@@ -722,6 +721,7 @@ def init(f):
     f._leip_init_hook = f.__name__
     return f
 
+
 def on_parse_error(f):
     """
     Execute this function on a parse_error
@@ -769,14 +769,14 @@ def conf(app, args):
 conf._leip_is_conf_subparser = True
 
 
-@arg('value', help="value to set it to")
-@arg('key', help="key to set")
-@subcommand(conf, "set")
-def conf_set(app, args):
-    """
-    set a variable
-    """
-    app.conf[args.key] = args.value
+# @arg('value', help="value to set it to")
+# @arg('key', help="key to set")
+# @subcommand(conf, "set")
+# def conf_set(app, args):
+#     """
+#     set a variable
+#     """
+#     app.conf[args.key] = args.value
 
 
 @arg("key", nargs='?')
@@ -816,21 +816,22 @@ def conf_show(app, args):
     else:
         data = app.conf
 
-    if not isinstance(data, fantail.Fantail):
-        if data:
-            print(data)
-        else:
-            print('{} has no keys/value'.format(args.prefix))
-        exit(0)
+    print(data.pretty())
+    # if not isinstance(data, fantail.Fantail):
+    #     if data:
+    #         print(data)
+    #     else:
+    #         print('{} has no keys/value'.format(args.prefix))
+    #     exit(0)
 
-    for k in data.keys():
-        val = str(data[k])
-        if len(val) > 60:
-            val = (" ".join(val.split()))[:60] + '...'
-        if args.prefix:
-            print('{0}.{1} {2}'.format(args.prefix, k, val))
-        else:
-            print('{0} {1}'.format(k, val))
+    # for k in data.keys():
+    #     val = str(data[k])
+    #     if len(val) > 60:
+    #         val = (" ".join(val.split()))[:60] + '...'
+    #     if args.prefix:
+    #         print('{0}.{1} {2}'.format(args.prefix, k, val))
+    #     else:
+    #         print('{0} {1}'.format(k, val))
 
 
 @arg("prefix", nargs='?')
@@ -869,18 +870,36 @@ def conf_rehash(app, args):
         rehash=True,
         clear_before_rehash=args.clear)
 
+    
+@arg('location')
+@subcommand(conf, "load")
+def conf_load(app, args):
+    """
+    Read & set configuration from the default pacakge data
+    """
+    lg.info('loading: %s' % args.location)
+    d = fantail.util.load(args.location)
 
-@arg("location", help='location of the configuration data')
-@arg("name", help='name')
-@subcommand(conf, "addloc")
-def _conf_addloc(app, args):
-    """
-    Add a location to load upon 'conf rehash'
-    """
-    conf_fof = get_conf_locations_fof(app.name)
-    confloc = load_conf_locations(conf_fof)
-    confloc[args.name] = args.location
-    save_conf_locations(conf_fof, confloc)
+    app.conf.update(d)
+    with open(get_conf_pickle_location(app.name), 'wb') as F:
+        pickle.dump(app.conf, F)
+
+    localconf = get_local_config_file(app.name)
+    localconf.update(d)
+    save_local_config_file(localconf, app.name)
+
+
+# @arg("location", help='location of the configuration data')
+# @arg("name", help='name')
+# @subcommand(conf, "addloc")
+# def _conf_addloc(app, args):
+#     """
+#     Add a location to load upon 'conf rehash'
+#     """
+#     conf_fof = get_conf_locations_fof(app.name)
+#     confloc = load_conf_locations(conf_fof)
+#     confloc[args.name] = args.location
+#     save_conf_locations(conf_fof, confloc)
 
 
 @arg("value", help='value')
@@ -890,6 +909,7 @@ def _conf_set(app, args):
     """
     Set a configuration value
     """
+    lg.debug("set new conf value")
     curval = app.conf[args.name]
     nval = args.value
 
@@ -916,7 +936,7 @@ def _conf_set(app, args):
     elif isint(nval):
         nval = int(nval)
 
-    #print("{} {} {}".format(args.name, curval, nval))
+    lg.info("Set '{}' from '{}' to '{}'".format(args.name, curval, nval))
 
     if curval and isinstance(curval, fantail.Fantail):
         lg.info("Cannot overwrite a branch")
