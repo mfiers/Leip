@@ -212,7 +212,10 @@ def save_conf_locations(conf_fof, conflocs):
         for name, location in conflocs.items():
             F.write("{}\t{}\n".format(name, location))
 
-
+class API:
+    """ This will contain the API """
+    pass
+            
 class app(object):
 
     def __init__(self,
@@ -243,6 +246,8 @@ class app(object):
         """
         lg.debug("Starting Leip app")
 
+        self.api = API()
+        
         if name is None:
             name = os.path.basename(sys.argv[0])
 
@@ -480,12 +485,15 @@ class app(object):
             if not hasattr(obj, '__call__'):
                 continue
 
-
+        
             # see if this is a hook
             if hasattr(obj, '__call__') and \
                     hasattr(obj, '_leip_parse_error_hook'):
                 self.leip_on_parse_error = obj
 
+            if hasattr(obj, '_leip_in_api') and obj._leip_in_api:
+                setattr(self.api, obj._leip_api_name, obj)
+                
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
                 if isinstance(hook, fantail.Fantail):
@@ -624,6 +632,14 @@ class app(object):
 #
 # Command decorators
 #
+def api(f):
+    """
+    Tag a function to be published in the app API
+    """
+    f._leip_in_api = True
+    f._leip_api_name = f.__name__
+    return f
+    
 def command(f):
     """
     Tag a function to become a command - take the function name and
