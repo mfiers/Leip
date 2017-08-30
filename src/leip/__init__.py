@@ -215,7 +215,7 @@ def save_conf_locations(conf_fof, conflocs):
 class API:
     """ This will contain the API """
     pass
-            
+
 class app(object):
 
     def __init__(self,
@@ -247,7 +247,7 @@ class app(object):
         lg.debug("Starting Leip app")
 
         self.api = API()
-        
+
         if name is None:
             name = os.path.basename(sys.argv[0])
 
@@ -272,7 +272,7 @@ class app(object):
         self.hookstore = {}
 
         if not disable_commands:
-            self.parser = ThrowingArgumentParser()
+            self.parser = ThrowingArgumentParser(add_help=False)
 
             self.parser.add_argument('-v', '--verbose', action='store_true')
             self.parser.add_argument('-q', '--quiet', action='store_true')
@@ -303,6 +303,10 @@ class app(object):
         if not delay_load_plugins:
             self.load_plugins()
 
+    @property
+    def xargs(self):
+        """Retrieve unparsed arguments."""
+        return self.trans['unknown_args']
 
     def load_plugins(self):
         # check for and load plugins
@@ -338,7 +342,6 @@ class app(object):
         def _run_command(app):
 
             command = self.trans['args'].command
-
             profile = self.trans['args'].profile
 
             # if profile:
@@ -359,48 +362,81 @@ class app(object):
             #     handle.close()
 
             if command is None:
+                print("No command specified")
                 self.parser.print_help()
                 sys.exit(0)
+
+            def argparse_fail_exit(func, err):
+                message = getattr(err, 'message', '').strip()
+
+                print("## Failed parsing arguments", file=sys.stderr)
+                func._leip_command_parser.print_help()
+
+                if message:
+                    super(ThrowingArgumentParser,
+                              self.parser).error(message)
+                exit(-1)
+
+            def argparse_fail(func):
+
+                # attempt a full parse to catch the argparse error:
+                try:
+                    args = self.parser.parse_args()
+                except ArgumentParserError as e:
+                    if self.leip_on_parse_error is None:
+                        # no error hook!
+                        argparse_fail_exit(func, e)
+
+                    else:
+                        lg.debug('parse error: %s', e.message)
+                        rv = app.leip_on_parse_error(self, e)
+
+                        # if the on_parse_error function returns a non-zero
+                        # number the error is raised after all
+                        if rv != 0:
+                            argparse_fail_exit(func, e)
+
+            def check_argparse_success(func):
+                if self.trans['unknown_args'] and \
+                        not getattr(func, '_leip_partial', False):
+                    argparse_fail(func)
+
+            def check_help(func):
+                # check that the 'nohelp' decorator was NOT specified
+                if not getattr(func, '_leip_nohelp', False):
+                    if self.trans['args'].help:
+                        func._leip_command_parser.print_help()
+                        exit()
 
             lg.debug("run command: {}".format(command))
             if command in self.leip_subparsers:
                 subcommand = getattr(self.trans['args'], command)
                 function = self.leip_subparsers[command][subcommand]
+                check_help(function)
+                check_argparse_success(function)
                 function(self, self.trans['args'])
             else:
-                func = self.leip_commands[command]
-                lg.debug("run function: {}".format(func))
-                func(self, self.trans['args'])
+                function = self.leip_commands[command]
+                lg.debug("run function: {}".format(function))
+                check_help(function)
+                check_argparse_success(function)
+                function(self, self.trans['args'])
 
         # register parse arguments as a hook
         def _prep_args(app):
 
-            if app.partial_parse:
+            # start with a partial argparse, decide later if
+            # we need to crash
+            try:
                 args, unknown_args = self.parser.parse_known_args()
-                self.trans['unknown_args'] = unknown_args
-            else:
-                try:
+            except ArgumentParserError as e:
+                print(e)
+                self.parser.print_help()
+                exit(-1)
 
-                    args = self.parser.parse_args()
-                except ArgumentParserError as e:
-                    #invalid call - see if there is an overriding function
-                    #to capture invalid calls
-                    if app.leip_on_parse_error is None:
-                        message = getattr(e, 'message', '')
-                        super(ThrowingArgumentParser,
-                              self.parser).error(message)
-                    else:
-                        lg.debug("parse error: %s", e.message)
-                        rv = app.leip_on_parse_error(app, e)
-
-                        #if the on_parse_error function returns a non-zero
-                        #number the error is raised after all
-                        if rv != 0:
-                            super(ThrowingArgumentParser,
-                                  self.parser).error(e.message)
-                        exit(0)
-
+            self.trans['unknown_args'] = unknown_args
             self.trans['args'] = args
+
             rootlogger = logging.getLogger()
             if self.trans['args'].verbose:
                 rootlogger.setLevel(logging.DEBUG)
@@ -485,7 +521,7 @@ class app(object):
             if not hasattr(obj, '__call__'):
                 continue
 
-        
+
             # see if this is a hook
             if hasattr(obj, '__call__') and \
                     hasattr(obj, '_leip_parse_error_hook'):
@@ -493,7 +529,7 @@ class app(object):
 
             if hasattr(obj, '_leip_in_api') and obj._leip_in_api:
                 setattr(self.api, obj._leip_api_name, obj)
-                
+
             if hasattr(obj, '_leip_hook'):
                 hook = obj._leip_hook
                 if isinstance(hook, fantail.Fantail):
@@ -576,7 +612,7 @@ class app(object):
             # regular command:
             cp = self.subparser.add_parser(
                 cname, usage=usage, help=short_description,
-                description=long_description)
+                description=long_description, add_help=False)
 
             # if this function is a subparser - add one - so we
             # can later add subcommands
@@ -589,6 +625,7 @@ class app(object):
             self.leip_subparsers[parent_name][subcommand_name] = function
             cp = parent._leip_subparser.add_parser(
                 subcommand_name, usage=usage,
+                add_help=False,
                 help=short_description,
                 description=long_description)
 
@@ -596,9 +633,15 @@ class app(object):
             for args, kwargs in function._leip_args:
                 cp.add_argument(*args, **kwargs)
 
+        # check if help was suppressed, if not, add it
+        if not getattr(function, '_leip_nohelp', False):
+            cp.add_argument('-h', '--help', help='Show help for this command',
+                            action='store_true')
+
         function._leip_command_parser = cp
 
     def register_hook(self, name, priority, function):
+        """Register a hook for a later call."""
         lg.debug("registering hook {0} / {1}".format(name, function))
         hookname = function.__name__ + str(function.__hash__())
         self.hookstore[(name, hookname)] = function
@@ -639,7 +682,7 @@ def api(f):
     f._leip_in_api = True
     f._leip_api_name = f.__name__
     return f
-    
+
 def command(f):
     """
     Tag a function to become a command - take the function name and
@@ -647,7 +690,21 @@ def command(f):
     """
     f._leip_command = f.__name__
     f._leip_args = []
+    f._leip_partial = False  # Partial argument parsing ?
     lg.debug("marking function as leip command: %s" % f.__name__)
+    return f
+
+
+def partial(f):
+    """
+    Mark a command as to be partially arg-parsed."""
+    f._leip_partial = True
+    return f
+
+def nohelp(f):
+    """
+    Do not provide a help flag for this command."""
+    f._leip_nohelp = True
     return f
 
 
@@ -886,7 +943,7 @@ def conf_rehash(app, args):
         rehash=True,
         clear_before_rehash=args.clear)
 
-    
+
 @arg('location')
 @subcommand(conf, "load")
 def conf_load(app, args):
