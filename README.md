@@ -1,4 +1,4 @@
-Leip
-====
+Fantail
+=======
 
-..more to follow..
+Minimal, hook based, python CLI framework.
