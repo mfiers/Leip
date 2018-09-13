@@ -89,6 +89,7 @@ class FantailConf(dict):
         return type(self)(FantailConf,
                           copy.deepcopy(self.items()))
 
+
     def backfill(self, d=None):
         """
         as update - but use only values that do not exists

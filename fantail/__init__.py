@@ -7,7 +7,7 @@ Fantail
 from __future__ import print_function
 
 import argparse
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, Counter
 import logging
 import logging.config
 import importlib
@@ -16,7 +16,8 @@ import pickle
 import sys
 import textwrap
 
-from fantail.conf import FantailConf
+from fantail import conf
+from fantail.conf import FantailConf, yaml_file_save, yaml_file_loader
 import fantail.conf.util as fcu
 
 try:
@@ -179,7 +180,7 @@ def get_cache_dir(name, *args):
 def get_local_config_file(name):
     fn = get_local_config_filename(name)
     if os.path.exists(fn):
-        return conf.yaml_file_loader(fn)
+        return yaml_file_loader(fn)
     else:
         return FantailConf()
 
@@ -189,7 +190,7 @@ def save_local_config_file(lconf, name):
     fnd = os.path.dirname(fn)
     if not os.path.exists(fnd):
         os.makedirs(fnd)
-    conf.yaml_file_save(lconf, fn)
+    yaml_file_save(lconf, fn)
 
 
 def get_conf_locations_fof(name):
@@ -255,6 +256,9 @@ class app(object):
 
         if package_name is None:
             package_name = name
+
+        #convenience object - for tracking stuff
+        self.counter = Counter()
 
         self.name = name
         self.set_name = set_name
@@ -997,7 +1001,7 @@ def _conf_set(app, args):
 
     lg.info("Set '{}' from '{}' to '{}'".format(args.name, curval, nval))
 
-    if curval and isinstance(curval, conf.FaintailConf):
+    if curval and isinstance(curval, FantailConf):
         lg.info("Cannot overwrite a branch")
         exit(-1)
 
