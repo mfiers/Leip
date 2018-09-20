@@ -309,6 +309,31 @@ class app(object):
         if not delay_load_plugins:
             self.load_plugins()
 
+
+    ###
+    # Message user
+    #
+    # Different from log-messages, these are formatted messages to inform the user
+    #
+    ###
+
+    def fmt_message(self, *args, **kwargs):
+        from colorama import Fore, Back, Style
+        kwargs['colf'] = kwargs.get('cf', Fore)
+        kwargs['colb'] = kwargs.get('cf', Back)
+        kwargs['cols'] = kwargs.get('cf', Style)
+        return(" ".join(map(str, args)).format(**kwargs))
+
+    def error(self, *args, **kwargs):
+        from colorama import Fore, Back, Style
+        print(Fore.RED + self.name + ' error' + Style.RESET_ALL,
+              self.fmt_message(*args, **kwargs))
+
+    def message(self, *args, **kwargs):
+        from colorama import Fore, Back, Style
+        print(Fore.GREEN + self.name + Style.RESET_ALL,
+              self.fmt_message(*args, **kwargs))
+
     @property
     def xargs(self):
         """Retrieve unparsed arguments."""

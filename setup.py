@@ -17,6 +17,7 @@ setup(name='fantail',
       install_requires=[
           'PyYAML>=3.0',
           'requests',
+          'colorama',
       ],
       classifiers=[
           'Development Status :: 4 - Beta',
