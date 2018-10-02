@@ -7,13 +7,13 @@ from setuptools import setup
 DESCRIPTION = "Lightweight Python CLI framework"
 
 setup(name='fantail',
-      version='0.5.0b2',
+      version='0.6',
       description=DESCRIPTION,
       author='Mark Fiers',
       author_email='mark.fiers.42@gmail.com',
       url='http://mfiers.github.com/Fantail',
       packages=['fantail'],
-      include_package_data=True,
+#      include_package_data=True,
       install_requires=[
           'PyYAML>=3.0',
           'requests',

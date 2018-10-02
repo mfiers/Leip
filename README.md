@@ -1,4 +1,4 @@
 Fantail
 =======
 
-Minimal, hook based, python CLI framework.
+A minimal python CLI framework.
