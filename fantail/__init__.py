@@ -52,9 +52,22 @@ class ArgumentParserError(Exception):
 
 
 class ThrowingArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
-        raise ArgumentParserError(message)
+    def __init__(self, *args, **kwargs):
+        self.throw = True
+        super().__init__(*args, **kwargs)
 
+    def parse_known_args(self, *args, **kwargs):
+        # can't throw doing this
+        self.throw = False
+        rv = super().parse_known_args(*args, **kwargs)
+        self.throw = True
+        return rv
+
+    def error(self, message):
+        if self.throw:
+            raise ArgumentParserError(message)
+        else:
+            super().error(message)
 
 # hack to quickly get the verbosity set properly:
 # if '-v' in sys.argv:
@@ -277,6 +290,14 @@ class app(object):
         self.hooks = defaultdict(list)
         self.hookstore = {}
 
+        #short cut to enable profiler
+        self.run_profiler = False
+        if '--profile' in sys.argv:
+            import cProfile
+            self._profiler = cProfile.Profile()
+            self._profiler.enable()
+            self.run_profiler = True
+
         if not disable_commands:
             self.parser = ThrowingArgumentParser(add_help=False)
 
@@ -305,6 +326,7 @@ class app(object):
         except Exception as e:
             lg.warning("unable to load logging configuration")
             lg.warning(str(e))
+
 
         if not delay_load_plugins:
             self.load_plugins()
@@ -371,31 +393,13 @@ class app(object):
 
         # register command run as a hook
         def _run_command(app):
-
             command = self.trans['args'].command
-            profile = self.trans['args'].profile
-
-            # if profile:
-            #     lg.warning("running profiler!")
-            #     import cProfile
-            #     import os
-            #     import pstats
-            #     import tempfile
-            #     pr = cProfile.Profile()
-            #     pr.enable()
-            #     app.run()
-            #     pr.disable()
-            #     handle = tempfile.NamedTemporaryFile(
-            #         delete=False, dir=os.getcwd(), prefix='Mad2.', suffix='.profiler')
-            #     sortby = 'cumulative'
-            #     ps = pstats.Stats(pr, stream=handle).sort_stats(sortby)
-            #     ps.print_stats()
-            #     handle.close()
 
             if command is None:
-                print("No command specified")
                 self.parser.print_help()
-                sys.exit(0)
+                exit()
+
+            profile = self.trans['args'].profile
 
             def argparse_fail_exit(func, err):
                 message = getattr(err, 'message', '').strip()
@@ -453,17 +457,15 @@ class app(object):
                 check_argparse_success(function)
                 function(self, self.trans['args'])
 
-        # register parse arguments as a hook
+
+        # prepare parse arguments as a hook
         def _prep_args(app):
+
+            # no clue why we might want to do this here & now
 
             # start with a partial argparse, decide later if
             # we need to crash
-            try:
-                args, unknown_args = self.parser.parse_known_args()
-            except ArgumentParserError as e:
-                print(e)
-                self.parser.print_help()
-                exit(-1)
+            args, unknown_args = self.parser.parse_known_args()
 
             self.trans['unknown_args'] = unknown_args
             self.trans['args'] = args
@@ -697,10 +699,22 @@ class app(object):
             func(self, *args, **kw)
 
     def run(self):
+
         for hook in self.hook_order:
             lg.debug("running hook {}/{}".format(self.name, hook))
             self.run_hook(hook)
 
+        if self.run_profiler:
+            import io, pstats, cProfile
+            from pstats import SortKey
+
+            self._profiler.disable()
+            s = io.StringIO()
+            sortby = SortKey.CUMULATIVE
+            ps = pstats.Stats(self._profiler, stream=s).sort_stats(sortby)
+            ps.print_stats()
+            with open(self.name + '.profile.tsv', 'w') as F:
+                F.write(s.getvalue())
 
 
 #
