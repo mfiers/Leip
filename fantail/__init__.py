@@ -247,6 +247,7 @@ class app(object):
            a configurable, hookable & pluginable core app.
 
         """
+#        lg.setLevel(logging.DEBUG)
         lg.debug("Starting Fantail app")
 
         self.api = API()
@@ -278,7 +279,7 @@ class app(object):
         self.hookstore = {}
 
         if not disable_commands:
-            self.parser = ThrowingArgumentParser(add_help=False)
+            self.parser = ThrowingArgumentParser(add_help=True)
 
             self.parser.add_argument('-v', '--verbose', action='store_true')
             self.parser.add_argument('-q', '--quiet', action='store_true')
@@ -414,6 +415,7 @@ class app(object):
                 try:
                     args = self.parser.parse_args()
                 except ArgumentParserError as e:
+                    print("XXXX")
                     if self.fantail_on_parse_error is None:
                         # no error hook!
                         argparse_fail_exit(func, e)
@@ -434,6 +436,7 @@ class app(object):
 
             def check_help(func):
                 # check that the 'nohelp' decorator was NOT specified
+                return
                 if not getattr(func, '_fantail_nohelp', False):
                     if self.trans['args'].help:
                         func._fantail_command_parser.print_help()
@@ -462,8 +465,18 @@ class app(object):
                 args, unknown_args = self.parser.parse_known_args()
             except ArgumentParserError as e:
                 print(e)
-                self.parser.print_help()
-                exit(-1)
+                print()
+                # try to see if the user attempted to call a subcommand
+                args = [x for x in sys.argv[1:] if not x.startswith('-')]
+                if len(args) > 0:
+                    command = args[0]
+                    #print(command)
+                    #print(self.fantail_subparsers)
+                    #print(command in self.fantail_subparsers)
+                    exit()
+                else:
+                    self.parser.print_help()
+                    exit(-1)
 
             self.trans['unknown_args'] = unknown_args
             self.trans['args'] = args
@@ -479,7 +492,7 @@ class app(object):
 
         if not self.disable_commands:
             self.register_hook('run', 50, _run_command)
-            self.register_hook('prepare', 50, _prep_args)
+            self.register_hook('prepare', 99, _prep_args)
 
         # discover locally
         self.discover(globals())
@@ -587,7 +600,6 @@ class app(object):
                 self.register_command(subcommand)
 
     def register_command(self, function):
-
         cname = function._fantail_command
 
         is_subcommand = False
@@ -608,9 +620,6 @@ class app(object):
             if hasattr(function, '_fantail_is_conf_subparser'):
                 is_conf_subparser = True
                 cname = self.set_name
-#                function._fantail_command = self.set_name
-#                subcommand_name = self.set_name
-
 
         lg.debug("command %s subp %s subc %s",
                  cname, is_subparser, is_subcommand)
@@ -639,11 +648,12 @@ class app(object):
 
         long_description = textwrap.dedent(long_description)
 
+
         if not is_subcommand:
             # regular command:
             cp = self.subparser.add_parser(
                 cname, usage=usage, help=short_description,
-                description=long_description, add_help=False)
+                description=long_description) # , add_help=False)
 
             # if this function is a subparser - add one - so we
             # can later add subcommands
@@ -652,11 +662,12 @@ class app(object):
                 subp = cp.add_subparsers(title=cname, dest=cname)
                 function._fantail_subparser = subp
         else:
+            #print('sp', cname, subcommand_name)
             parent_name = parent._fantail_command
             self.fantail_subparsers[parent_name][subcommand_name] = function
             cp = parent._fantail_subparser.add_parser(
                 subcommand_name, usage=usage,
-                add_help=False,
+#                add_help=False,
                 help=short_description,
                 description=long_description)
 
@@ -665,9 +676,9 @@ class app(object):
                 cp.add_argument(*args, **kwargs)
 
         # check if help was suppressed, if not, add it
-        if not getattr(function, '_fantail_nohelp', False):
-            cp.add_argument('-h', '--help', help='Show help for this command',
-                            action='store_true')
+#        if not getattr(function, '_fantail_nohelp', False):
+#            cp.add_argument('-h', '--help', help='Show help for this command',
+#                            action='store_true')
 
         function._fantail_command_parser = cp
 
@@ -920,7 +931,10 @@ def conf_show(app, args):
     else:
         data = app.conf
 
-    print(data.pretty())
+    if isinstance(data, FantailConf):
+        print(data.pretty())
+    else:
+        print(data)
 
 @arg("prefix", nargs='?')
 @subcommand(conf, "keys")
