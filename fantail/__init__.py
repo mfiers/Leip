@@ -245,6 +245,7 @@ class app(object):
                  set_name='conf',
                  rehash_name='rehash',
                  delay_load_plugins=False,
+                 config_ui=True,
                  disable_commands=False):
         """
 
@@ -261,6 +262,8 @@ class app(object):
         :param disable_commands: Disable all command/subcommand &
            argparse related functionality - leaving the user with
            a configurable, hookable & pluginable core app.
+        :param config_ui: Include the default configuration interface
+        :type config_ui: boolean
 
         """
         lg.debug("Starting Fantail app")
@@ -275,7 +278,7 @@ class app(object):
 
         #convenience object - for tracking stuff
         self.counter = Counter()
-
+        self.config_ui = config_ui
         self.name = name
         self.set_name = set_name
         self.package_name = package_name
@@ -339,6 +342,7 @@ class app(object):
         current_frame = inspect.currentframe()
         calling_frame_locals = current_frame.f_back.f_locals
         self.discover(calling_frame_locals)
+
     ###
     # Message user
     #
@@ -490,8 +494,9 @@ class app(object):
             self.register_hook('run', 50, _run_command)
             self.register_hook('prepare', 50, _prep_args)
 
-        # discover locally
-        self.discover(globals())
+        # discover local commands - == configuration interface
+        if self.config_ui:
+            self.discover(globals())
 
     def cache_dir(self, group=None):
         """
