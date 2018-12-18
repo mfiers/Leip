@@ -10,6 +10,7 @@ import argparse
 from collections import defaultdict, OrderedDict, Counter
 import logging
 import logging.config
+import inspect
 import importlib
 import os
 import pickle
@@ -19,6 +20,7 @@ import textwrap
 from fantail import conf
 from fantail.conf import FantailConf, yaml_file_save, yaml_file_loader
 import fantail.conf.util as fcu
+
 
 try:
     from colorlog import ColoredFormatter
@@ -97,8 +99,8 @@ def get_config(name,
 
     conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
 
-    if not os.path.exists(conf_dir):
-        os.makedirs(conf_dir)
+    #if not os.path.exists(conf_dir):
+    #    os.makedirs(conf_dir)
 
     conf_location = get_conf_pickle_location(name)
 
@@ -134,24 +136,25 @@ def get_config(name,
     # From where to read configuration files???
     conf_fof = os.path.join(conf_dir, 'config.locations')
 
-    if os.path.exists(conf_fof):
-        conflocs = load_conf_locations(conf_fof)
-    else:
+    if not os.path.exists(conf_fof):
         conflocs = OrderedDict()
         conflocs['package'] = 'pkg://{}/etc/'.format(package_name)
         conflocs['system'] = '/etc/{}/'.format(name)
         conflocs['user'] = \
             os.path.join(os.path.expanduser('~'),
                          '.config', name, 'config' + '/')
-        save_conf_locations(conf_fof, conflocs)
+        #not saving the file of files - never used or changed this
+        #save_conf_locations(conf_fof, conflocs)
+    else:
+        conflocs = load_conf_locations(conf_fof)
 
     for name, location in conflocs.items():
         lg.debug("loading config '{}': {}".format(name, location))
         rv = fcu.load(location)
         conf.update(rv)
 
-    with open(conf_location, 'wb') as F:
-        pickle.dump(conf, F)
+    #with open(conf_location, 'wb') as F:
+    #    pickle.dump(conf, F)
 
     return conf
 
@@ -265,7 +268,7 @@ class app(object):
         self.api = API()
 
         if name is None:
-            name = os.path.basename(sys.argv[0])
+            name = os.path.basename(sys.argv[0]).replace('.py', '')
 
         if package_name is None:
             package_name = name
@@ -290,6 +293,7 @@ class app(object):
         self.hooks = defaultdict(list)
         self.hookstore = {}
 
+
         #short cut to enable profiler
         self.run_profiler = False
         if '--profile' in sys.argv:
@@ -297,6 +301,7 @@ class app(object):
             self._profiler = cProfile.Profile()
             self._profiler.enable()
             self.run_profiler = True
+
 
         if not disable_commands:
             self.parser = ThrowingArgumentParser(add_help=False)
@@ -331,7 +336,9 @@ class app(object):
         if not delay_load_plugins:
             self.load_plugins()
 
-
+        current_frame = inspect.currentframe()
+        calling_frame_locals = current_frame.f_back.f_locals
+        self.discover(calling_frame_locals)
     ###
     # Message user
     #
@@ -1045,7 +1052,11 @@ def _conf_set(app, args):
         exit(-1)
 
     app.conf[args.name] = nval
-    with open(get_conf_pickle_location(app.name), 'wb') as F:
+    pickle_file = get_conf_pickle_location(app.name)
+    pickle_dir = os.path.dirname(pickle_file)
+    if not os.path.exists(pickle_dir):
+        os.makedirs(pickle_dir)
+    with open(pickle_file, 'wb') as F:
         pickle.dump(app.conf, F)
 
     localconf = get_local_config_file(app.name)
