@@ -7,7 +7,7 @@ from setuptools import setup
 DESCRIPTION = "Lightweight Python CLI framework"
 
 setup(name='fantail',
-      version='0.6.6',
+      version='0.6.7',
       description=DESCRIPTION,
       author='Mark Fiers',
       author_email='mark.fiers.42@gmail.com',
