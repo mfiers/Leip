@@ -718,11 +718,11 @@ class app(object):
 
         if self.run_profiler:
             import io, pstats, cProfile
-            from pstats import SortKey
+#            from pstats import SortKey
 
             self._profiler.disable()
             s = io.StringIO()
-            sortby = SortKey.CUMULATIVE
+            sortby = "cumulative"
             ps = pstats.Stats(self._profiler, stream=s).sort_stats(sortby)
             ps.print_stats()
             with open(self.name + '.profile.tsv', 'w') as F:
