@@ -8,17 +8,26 @@ from __future__ import print_function
 
 import argparse
 from collections import defaultdict, OrderedDict, Counter
+import copy
+import filecmp
+import functools
+import hashlib
 import logging
 import logging.config
+import inspect
 import importlib
 import os
 import pickle
+import shutil
 import sys
 import textwrap
+import traceback
 
+from decorator import decorate
 from fantail import conf
 from fantail.conf import FantailConf, yaml_file_save, yaml_file_loader
 import fantail.conf.util as fcu
+
 
 try:
     from colorlog import ColoredFormatter
@@ -52,9 +61,22 @@ class ArgumentParserError(Exception):
 
 
 class ThrowingArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
-        raise ArgumentParserError(message)
+    def __init__(self, *args, **kwargs):
+        self.throw = True
+        super().__init__(*args, **kwargs)
 
+    def parse_known_args(self, *args, **kwargs):
+        # can't throw doing this
+        self.throw = False
+        rv = super().parse_known_args(*args, **kwargs)
+        self.throw = True
+        return rv
+
+    def error(self, message):
+        if self.throw:
+            raise ArgumentParserError(message)
+        else:
+            super().error(message)
 
 # hack to quickly get the verbosity set properly:
 # if '-v' in sys.argv:
@@ -84,8 +106,8 @@ def get_config(name,
 
     conf_dir = os.path.join(os.path.expanduser('~'), '.config', name)
 
-    if not os.path.exists(conf_dir):
-        os.makedirs(conf_dir)
+    #if not os.path.exists(conf_dir):
+    #    os.makedirs(conf_dir)
 
     conf_location = get_conf_pickle_location(name)
 
@@ -121,24 +143,25 @@ def get_config(name,
     # From where to read configuration files???
     conf_fof = os.path.join(conf_dir, 'config.locations')
 
-    if os.path.exists(conf_fof):
-        conflocs = load_conf_locations(conf_fof)
-    else:
+    if not os.path.exists(conf_fof):
         conflocs = OrderedDict()
         conflocs['package'] = 'pkg://{}/etc/'.format(package_name)
         conflocs['system'] = '/etc/{}/'.format(name)
         conflocs['user'] = \
             os.path.join(os.path.expanduser('~'),
                          '.config', name, 'config' + '/')
-        save_conf_locations(conf_fof, conflocs)
+        #not saving the file of files - never used or changed this
+        #save_conf_locations(conf_fof, conflocs)
+    else:
+        conflocs = load_conf_locations(conf_fof)
 
     for name, location in conflocs.items():
         lg.debug("loading config '{}': {}".format(name, location))
         rv = fcu.load(location)
         conf.update(rv)
 
-    with open(conf_location, 'wb') as F:
-        pickle.dump(conf, F)
+    #with open(conf_location, 'wb') as F:
+    #    pickle.dump(conf, F)
 
     return conf
 
@@ -229,6 +252,7 @@ class app(object):
                  set_name='conf',
                  rehash_name='rehash',
                  delay_load_plugins=False,
+                 config_ui=True,
                  disable_commands=False):
         """
 
@@ -245,6 +269,8 @@ class app(object):
         :param disable_commands: Disable all command/subcommand &
            argparse related functionality - leaving the user with
            a configurable, hookable & pluginable core app.
+        :param config_ui: Include the default configuration interface
+        :type config_ui: boolean
 
         """
 #        lg.setLevel(logging.DEBUG)
@@ -253,14 +279,14 @@ class app(object):
         self.api = API()
 
         if name is None:
-            name = os.path.basename(sys.argv[0])
+            name = os.path.basename(sys.argv[0]).replace('.py', '')
 
         if package_name is None:
             package_name = name
 
         #convenience object - for tracking stuff
         self.counter = Counter()
-
+        self.config_ui = config_ui
         self.name = name
         self.set_name = set_name
         self.package_name = package_name
@@ -277,6 +303,16 @@ class app(object):
 
         self.hooks = defaultdict(list)
         self.hookstore = {}
+
+
+        #short cut to enable profiler
+        self.run_profiler = False
+        if '--profile' in sys.argv:
+            import cProfile
+            self._profiler = cProfile.Profile()
+            self._profiler.enable()
+            self.run_profiler = True
+
 
         if not disable_commands:
             self.parser = ThrowingArgumentParser(add_help=True)
@@ -307,9 +343,13 @@ class app(object):
             lg.warning("unable to load logging configuration")
             lg.warning(str(e))
 
+
         if not delay_load_plugins:
             self.load_plugins()
 
+        current_frame = inspect.currentframe()
+        calling_frame_locals = current_frame.f_back.f_locals
+        self.discover(calling_frame_locals)
 
     ###
     # Message user
@@ -372,31 +412,13 @@ class app(object):
 
         # register command run as a hook
         def _run_command(app):
-
             command = self.trans['args'].command
-            profile = self.trans['args'].profile
-
-            # if profile:
-            #     lg.warning("running profiler!")
-            #     import cProfile
-            #     import os
-            #     import pstats
-            #     import tempfile
-            #     pr = cProfile.Profile()
-            #     pr.enable()
-            #     app.run()
-            #     pr.disable()
-            #     handle = tempfile.NamedTemporaryFile(
-            #         delete=False, dir=os.getcwd(), prefix='Mad2.', suffix='.profiler')
-            #     sortby = 'cumulative'
-            #     ps = pstats.Stats(pr, stream=handle).sort_stats(sortby)
-            #     ps.print_stats()
-            #     handle.close()
 
             if command is None:
-                print("No command specified")
                 self.parser.print_help()
-                sys.exit(0)
+                exit()
+
+            profile = self.trans['args'].profile
 
             def argparse_fail_exit(func, err):
                 message = getattr(err, 'message', '').strip()
@@ -456,8 +478,11 @@ class app(object):
                 check_argparse_success(function)
                 function(self, self.trans['args'])
 
-        # register parse arguments as a hook
+
+        # prepare parse arguments as a hook
         def _prep_args(app):
+
+            # no clue why we might want to do this here & now
 
             # start with a partial argparse, decide later if
             # we need to crash
@@ -494,8 +519,9 @@ class app(object):
             self.register_hook('run', 50, _run_command)
             self.register_hook('prepare', 99, _prep_args)
 
-        # discover locally
-        self.discover(globals())
+        # discover local commands - == configuration interface
+        if self.config_ui:
+            self.discover(globals())
 
     def cache_dir(self, group=None):
         """
@@ -708,22 +734,171 @@ class app(object):
             func(self, *args, **kw)
 
     def run(self):
+
         for hook in self.hook_order:
             lg.debug("running hook {}/{}".format(self.name, hook))
             self.run_hook(hook)
 
+        if self.run_profiler:
+            import io, pstats, cProfile
+            from pstats import SortKey
+
+            self._profiler.disable()
+            s = io.StringIO()
+            sortby = SortKey.CUMULATIVE
+            ps = pstats.Stats(self._profiler, stream=s).sort_stats(sortby)
+            ps.print_stats()
+            with open(self.name + '.profile.tsv', 'w') as F:
+                F.write(s.getvalue())
 
 
 #
 # Command decorators
 #
+
 def api(f):
     """
-    Tag a function to be published in the app API
+    Tag a function to be added to the tool API
     """
     f._fantail_in_api = True
     f._fantail_api_name = f.__name__
     return f
+
+
+# Simple caching...
+def cache():
+
+    def memoize_decorator(func):
+
+        cache_data = {}
+        if hasattr(func, '_fantail_cache'):
+            cache_data = func._fantail_cache
+
+        @functools.wraps(func)
+        def wrapper(app, args):
+            _args = copy.copy(vars(args))
+
+            _to_memoize = []
+
+            del _args['quiet'], _args['verbose'], _args['profile']
+
+            for ck, ct in cache_data.items():
+                assert ct == 'output'
+                _to_memoize.append((ck, _args[ck]))
+                # we're not taking the name of the output file into
+                # account when calculating the hash - assuming this is
+                # not a factor in the output
+                del _args[ck]
+
+            # create a unique hash for this call
+            key = frozenset(_args.items())
+            keyp = pickle.dumps(sorted(key))
+            md5 = hashlib.md5(keyp).hexdigest()
+
+            # # define an output folder
+            cachefolder = app.conf.get("fantail_memoize_path",
+                                       '~/.cache/fantail/' + app.name)
+            cachefolder = os.path.expanduser(cachefolder)
+            cachefolder = os.path.join(cachefolder, md5)
+            if not os.path.exists(cachefolder):
+                os.makedirs(cachefolder)
+            cachedevice = os.stat(cachefolder).st_dev
+
+
+            if os.path.exists(cachefolder):
+                # cache exists - get data from there:
+
+                cache_is_ok = True
+                for name, fname in _to_memoize:
+                    cfile = os.path.join(cachefolder, name)
+                    fdir = os.path.dirname(os.path.abspath(os.path.expanduser(fname)))
+                    fdev = os.stat(fdir).st_dev
+
+                    if not os.path.exists(cfile):
+                        lg.warning("cache file does not exist %s", cfile)
+                        #cache file does not exist - that is not good
+                        cache_is_ok = False
+
+
+                    if os.path.exists(fname):
+                        lg.debug("target file exist %s", fname)
+                        #hey - target exists - what now???
+                        # need to check if they are the same
+                        if filecmp.cmp(cfile, fname):
+                            #files are the same - that is good
+                            # do not do anything
+                            lg.debug("cached & output file are the same - excellent")
+
+                        else:
+                            #files idffer
+                            lg.error("Trying to retrieve cache")
+                            lg.error("However output file exists: {}".format(fname))
+                            lg.error("And it differs from the cachefile: {}".format(cfile))
+                            exit(-1)
+                    else:
+                        # file deos not exist - ln/cp from cache
+                        lg.debug("retrieving output file {} from cache ({})".format(
+                            fname, cfile ))
+                        if fdev == cachedevice:
+                            # same device - hardlink:
+                            os.link(cfile, fname)
+                        else:
+                            shutil.copyfile(cfile, fname)
+
+                if cache_is_ok:
+                    return
+
+
+            # still here? Then either there was no cache - or
+            # something did not work
+
+            rv = func(app, args)
+
+            assert rv is None
+            # expect rv to be None
+
+            # save the rv output to the cache folder not sure if this
+            # makes sense as fantail commands are not supposed to
+            # return a value - but maybe this can make sense for API
+            # commands ?
+            # o1 = os.path.join(cachefolder, '_func_out.pickle')
+            # with open(o1, 'wb') as F:
+            #     pickle.dump(o1, F)
+
+            for name, fname in _to_memoize:
+                if not os.path.exists(fname):
+                    lg.error("Trying to cache output file {}".format(name))
+                    lg.error("    but cannot find {}".format(fname))
+                    break
+
+                fdevice = os.stat(fname).st_dev
+
+                if fdevice == cache_device:
+                    os.link(fname, os.path.join(cachefolder, name))
+                else:
+                    shutil.copyfile(fname, os.path.join(cachefolder, name))
+
+
+            return rv
+
+        return wrapper
+    return memoize_decorator
+
+    # app, args = fargs
+    #
+    #
+    #
+
+    # # check where the output is memoized
+    # if not os.path.exists(md):
+    #     os.makedirs(md)
+
+    # return f(app, args)
+
+
+    #f.cache = {}
+    #return decorate(f, _memoize)
+
 
 def command(f):
     """
@@ -804,8 +979,28 @@ def arg(*args, **kwargs):
     add an argument to a command - use the full argparse syntax
     """
     def decorator(f):
+        # filter out fantail cache args
+        if 'cache' in kwargs:
+            cache = kwargs['cache']
+            del kwargs['cache']
+
+            if not hasattr(f, '_fantail_cache'):
+                f._fantail_cache = {}
+
+            def kname(a):
+                if not a[0].startswith('-'):
+                    return a[0]
+                elif a[0].startswith('-') and a[1].startswith('--'):
+                    return a[1][2:]
+                else:
+                    raise NotImplementedError("Can't find arg name", args)
+
+            f._fantail_cache[kname(args)] = cache
+            lg.debug("cache {} {}".format(args, kwargs))
+
         lg.debug(
             "adding fantail argument {0}, {1}".format(str(args), str(kwargs)))
+
         f._fantail_args.append((args, kwargs))
         return f
     return decorator
@@ -991,19 +1186,38 @@ def conf_load(app, args):
     save_local_config_file(localconf, app.name)
 
 
-# @arg("location", help='location of the configuration data')
-# @arg("name", help='name')
-# @subcommand(conf, "addloc")
-# def _conf_addloc(app, args):
-#     """
-#     Add a location to load upon 'conf rehash'
-#     """
-#     conf_fof = get_conf_locations_fof(app.name)
-#     confloc = load_conf_locations(conf_fof)
-#     confloc[args.name] = args.location
-#     save_conf_locations(conf_fof, confloc)
+@arg("name", help='name')
+@subcommand(conf, "rm")
+def _conf_rm(app, args):
+    """
+    Remove a configuration key
+    """
+    lg.debug("rm conf value")
+
+    try:
+        del app.conf[args.name]
+
+        pickle_file = get_conf_pickle_location(app.name)
+        pickle_dir = os.path.dirname(pickle_file)
+
+        if not os.path.exists(pickle_dir):
+            os.makedirs(pickle_dir)
+        with open(pickle_file, 'wb') as F:
+            pickle.dump(app.conf, F)
+
+    except KeyError:
+        pass
 
 
+    localconf = get_local_config_file(app.name)
+    try:
+        del localconf[args.name]
+        save_local_config_file(localconf, app.name)
+    except KeyError:
+        pass
+
+
+@flag("--append", help='append - automatically converting this field to a list')
 @arg("value", help='value')
 @arg("name", help='name')
 @subcommand(conf, "set")
@@ -1038,14 +1252,28 @@ def _conf_set(app, args):
     elif isfloat(nval):
         nval = float(nval)
 
-    lg.info("Set '{}' from '{}' to '{}'".format(args.name, curval, nval))
-
-    if curval and isinstance(curval, FantailConf):
-        lg.info("Cannot overwrite a branch")
+    if args.append:
+        if not isinstance(curval, list):
+            if curval:
+                curval = [curval]
+            else: curval = []
+        if not nval in curval:
+            nval = curval + [nval]
+    elif curval and isinstance(curval, list):
+        lg.warning("Cannot overwrite a list")
         exit(-1)
+    elif curval and isinstance(curval, FantailConf):
+        lg.warning("Cannot overwrite a branch")
+        exit(-1)
+    else:
+        lg.info("Set '{}' from '{}' to '{}'".format(args.name, curval, nval))
 
     app.conf[args.name] = nval
-    with open(get_conf_pickle_location(app.name), 'wb') as F:
+    pickle_file = get_conf_pickle_location(app.name)
+    pickle_dir = os.path.dirname(pickle_file)
+    if not os.path.exists(pickle_dir):
+        os.makedirs(pickle_dir)
+    with open(pickle_file, 'wb') as F:
         pickle.dump(app.conf, F)
 
     localconf = get_local_config_file(app.name)
