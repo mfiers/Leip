@@ -884,6 +884,31 @@ def hook(name, priority=50):
 
     return _hook
 
+#
+# Memoization
+#
+
+from decorator import decorate
+def _memoize(func, app, args):
+    print(args)
+    # if kw:  # frozenset is used to ensure hashability
+    #     key = args, frozenset(kw.items())
+    # else:
+    #     key = args
+    cache = func.cache  # attribute added by memoize
+    if key not in cache:
+        cache[key] = func(*args, **kw)
+    return cache[key]
+
+def memoize(f):
+    """
+    A simple memoize implementation. It works by adding a .cache dictionary
+    to the decorated function. The cache will grow indefinitely, so it is
+    your responsibility to clear it, if needed.
+    """
+    f.cache = {}
+    return decorate(f, _memoize)
+
 
 #
 # configuration code
