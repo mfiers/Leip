@@ -26,7 +26,7 @@ class literal_unicode(str):
 
 def literal_str_representer(dumper, data):
     return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
-        
+
 #yaml.add_representer(literal_unicode, literal_unicode_representer)
 yaml.add_representer(literal_str, literal_str_representer)
 
@@ -98,7 +98,7 @@ def load(data):
     """
     return guess_loader(data)(data)
 
-    
+
 def dict_loader(dictionary):
     """
     Populate a yaco object from a dictionary
@@ -207,8 +207,12 @@ def package_loader(uri):
 
     uri = uri.rstrip('/')
     pkg_name, path = uri.split('/', 1)
-    if not pkg_resources.resource_exists(pkg_name, path):
-        # requested resource does not exist
+    try:
+        if not pkg_resources.resource_exists(pkg_name, path):
+            # requested resource does not exist
+            return FantailConf()
+    except ModuleNotFoundError as e:
+        # or the complete module does not exist -
         return FantailConf()
 
     # check if we're looking at a single file in a package -
