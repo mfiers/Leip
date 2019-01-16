@@ -5,3 +5,6 @@ Leip.egg-info
 *~
 build
 dist
+backup2/
+_fantail_backup/
+*.egg-info
