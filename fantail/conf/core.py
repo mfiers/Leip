@@ -37,6 +37,15 @@ class FantailConf(dict):
         else:
             dict.__setitem__(self, key, value)
 
+
+    def __delitem__(self, key):
+        if isinstance(key, str) and '.' in key:
+            keyA, keyB = key.split('.', 1)
+            del self[keyA][keyB]
+        else:
+            super().__delitem__(key)
+
+
     def get(self, key, default=None):
         if isinstance(key, str) and '.' in key:
             keyA, keyB = key.split('.', 1)
