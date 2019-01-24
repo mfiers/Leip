@@ -304,7 +304,6 @@ class app(object):
         self.hooks = defaultdict(list)
         self.hookstore = {}
 
-
         #short cut to enable profiler
         self.run_profiler = False
         if '--profile' in sys.argv:
@@ -312,7 +311,6 @@ class app(object):
             self._profiler = cProfile.Profile()
             self._profiler.enable()
             self.run_profiler = True
-
 
         if not disable_commands:
             self.parser = ThrowingArgumentParser(add_help=True)
@@ -347,6 +345,7 @@ class app(object):
         if not delay_load_plugins:
             self.load_plugins()
 
+        #go and discover commands in there calling code
         current_frame = inspect.currentframe()
         calling_frame_locals = current_frame.f_back.f_locals
         self.discover(calling_frame_locals)
@@ -374,6 +373,7 @@ class app(object):
         from colorama import Fore, Back, Style
         print(Fore.GREEN + self.name + Style.RESET_ALL,
               self.fmt_message(*args, **kwargs))
+
 
     @property
     def xargs(self):
@@ -410,7 +410,7 @@ class app(object):
             self.plugins[plugin_name] = mod
             self.discover(mod)
 
-        # register command run as a hook
+        # actual execution of the code - is a hook in the fantail code
         def _run_command(app):
             command = self.trans['args'].command
 
