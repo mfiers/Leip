@@ -582,6 +582,7 @@ class app(object):
         subcommands = []
 
         for obj_name in mod_objects:
+
             obj = mod_objects[obj_name]
 
             if isinstance(obj, FantailConf):
@@ -590,7 +591,6 @@ class app(object):
             # if this is not a function - ignore
             if not hasattr(obj, '__call__'):
                 continue
-
 
             # see if this is a hook
             if hasattr(obj, '__call__') and \

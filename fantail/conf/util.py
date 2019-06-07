@@ -38,7 +38,7 @@ PY3 = sys.version_info[0] > 2
 lg = logging.getLogger(__name__)
 # lg.setLevel(logging.DEBUG)
 
-_demo_object = yaml.load("""
+_demo_object = yaml.safe_load("""
 a:
   b1:
     c1: v1
@@ -47,7 +47,6 @@ a:
   b2: v4
 """)
 
-#['pkg://leip/etc/*.config', u'/Users/u0089478/.config/leip/', '/etc/leip/']
 ALLOWED_TXT_EXTENSIONS = """
 txt py pl R sh bash
 """.strip().split()
@@ -117,7 +116,7 @@ def dict_loader(dictionary):
 
 def request_loader(path):
     raw = requests.get(path).text
-    return yaml.load(raw)
+    return yaml.safe_load(raw)
 
 
 def yaml_string_loader(data):
@@ -126,7 +125,7 @@ def yaml_string_loader(data):
     """
     # lg.debug("load string %s",
     #         b" ".join(data.split())[:50])
-    parsed = yaml.load(data)
+    parsed = yaml.safe_load(data)
     return dict_loader(parsed)
 
 
@@ -135,7 +134,7 @@ def yaml_file_loader(filename):
     Populate a yaco object from a yaml string
     """
     with open(filename) as F:
-        data = yaml.load(F)
+        data = yaml.safe_load(F)
     return dict_loader(data)
 
 
