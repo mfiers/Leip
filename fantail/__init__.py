@@ -160,8 +160,8 @@ def get_config(name,
         rv = fcu.load(location)
         conf.update(rv)
 
-    #with open(conf_location, 'wb') as F:
-    #    pickle.dump(conf, F)
+    with open(conf_location, 'wb') as F:
+        pickle.dump(conf, F)
 
     return conf
 
