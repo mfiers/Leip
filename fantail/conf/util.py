@@ -45,7 +45,7 @@ a:
     c2: v2
     c3: v3
   b2: v4
-""")
+""", Loader=yaml.SafeLoader)
 
 #['pkg://leip/etc/*.config', u'/Users/u0089478/.config/leip/', '/etc/leip/']
 ALLOWED_TXT_EXTENSIONS = """
@@ -126,7 +126,7 @@ def yaml_string_loader(data):
     """
     # lg.debug("load string %s",
     #         b" ".join(data.split())[:50])
-    parsed = yaml.load(data)
+    parsed = yaml.load(data, Loader=yaml.SafeLoader)
     return dict_loader(parsed)
 
 
@@ -135,7 +135,7 @@ def yaml_file_loader(filename):
     Populate a yaco object from a yaml string
     """
     with open(filename) as F:
-        data = yaml.load(F)
+        data = yaml.load(F, Loader=yaml.SafeLoader)
     return dict_loader(data)
 
 
@@ -237,7 +237,10 @@ def package_loader(uri):
                 data = data.decode('ascii')
 
         if file_ext in ['yaml', 'conf', 'config']:
-            return yaml_string_loader(data)
+            rv = yaml_string_loader(data)
+            lg.debug("loaded")
+            lg.debug(str(rv))
+            return rv
         elif file_ext in ['txt', '']:
             return data
         elif file_ext in ['pickle']:
