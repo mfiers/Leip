@@ -78,13 +78,15 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
         else:
             super().error(message)
 
-# hack to quickly get the verbosity set properly:
-if '-v' in sys.argv:
-    lg.setLevel(logging.DEBUG)
-elif '-q' in sys.argv:
-    lg.setLevel(logging.WARNING)
-else:
-    lg.setLevel(logging.INFO)
+# # hack to quickly get the verbosity set properly:
+# if '-v' in sys.argv:
+#     lg.setLevel(logging.DEBUG)
+# elif '-q' in sys.argv:
+#     lg.setLevel(logging.WARNING)
+# else:
+#     lg.setLevel(logging.INFO)
+
+lg.setLevel(logging.WARNING)
 
 # cache config files
 CONFIG = {}
