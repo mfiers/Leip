@@ -45,7 +45,7 @@ a:
     c2: v2
     c3: v3
   b2: v4
-""")
+""", Loader=yaml.SafeLoader)
 
 ALLOWED_TXT_EXTENSIONS = """
 txt py pl R sh bash
@@ -123,9 +123,7 @@ def yaml_string_loader(data):
     """
     Populate a yaco object from a yaml string
     """
-    # lg.debug("load string %s",
-    #         b" ".join(data.split())[:50])
-    parsed = yaml.safe_load(data)
+    parsed = yaml.load(data, Loader=yaml.SafeLoader)
     return dict_loader(parsed)
 
 
@@ -134,7 +132,7 @@ def yaml_file_loader(filename):
     Populate a yaco object from a yaml string
     """
     with open(filename) as F:
-        data = yaml.safe_load(F)
+        data = yaml.load(F, Loader=yaml.SafeLoader)
     return dict_loader(data)
 
 
@@ -236,7 +234,10 @@ def package_loader(uri):
                 data = data.decode('ascii')
 
         if file_ext in ['yaml', 'conf', 'config']:
-            return yaml_string_loader(data)
+            rv = yaml_string_loader(data)
+            lg.debug("loaded")
+            lg.debug(str(rv))
+            return rv
         elif file_ext in ['txt', '']:
             return data
         elif file_ext in ['pickle']:
