@@ -23,11 +23,13 @@ import sys
 import textwrap
 import traceback
 
+
 from decorator import decorate
 from fantail import conf
 from fantail.conf import FantailConf, yaml_file_save, yaml_file_loader
 import fantail.conf.util as fcu
 
+from fantail.fcache import fcache
 
 try:
     from colorlog import ColoredFormatter
