@@ -164,8 +164,9 @@ def get_config(name,
         rv = fcu.load(location)
         conf.update(rv)
 
-    with open(conf_location, 'wb') as F:
-        pickle.dump(conf, F)
+    if len(conf) > 0:
+        with open(conf_location, 'wb') as F:
+            pickle.dump(conf, F)
 
     return conf
 

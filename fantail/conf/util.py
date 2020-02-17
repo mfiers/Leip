@@ -45,7 +45,7 @@ a:
     c2: v2
     c3: v3
   b2: v4
-""", Loader=yaml.SafeLoader)
+""") # , Loader=yaml.SafeLoader)
 
 ALLOWED_TXT_EXTENSIONS = """
 txt py pl R sh bash
